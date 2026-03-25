@@ -34,7 +34,6 @@ Route::middleware(['auth', 'tenant', 'tenant.ensure'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
-    Route::get('incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
 
     Route::middleware('tenant.role:citizen,resident')->group(function () {
         Route::get('incidents/create', [IncidentController::class, 'create'])->name('incidents.create');
@@ -42,6 +41,8 @@ Route::middleware(['auth', 'tenant', 'tenant.ensure'])->group(function () {
         Route::get('blotter-requests/create', [BlotterRequestController::class, 'create'])->name('blotter-requests.create');
         Route::post('blotter-requests', [BlotterRequestController::class, 'store'])->name('blotter-requests.store');
     });
+
+    Route::get('incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
 
     Route::get('blotter-requests', [BlotterRequestController::class, 'index'])->name('blotter-requests.index');
 
