@@ -114,13 +114,13 @@ touch database/database.sqlite
     ```env
     DB_HOST=127.0.0.1
     DB_PORT=3306
-    DB_DATABASE=barangay_blotter
+    DB_DATABASE=barangay
     DB_USERNAME=root
     DB_PASSWORD=your_password
     ```
 3. Create the database in MySQL first:
     ```sql
-    CREATE DATABASE barangay_blotter;
+    CREATE DATABASE barangay;
     ```
 
 ### Step 5: Migrate Database & Load Demo Data
@@ -277,7 +277,7 @@ If you're using MySQL instead of SQLite, here's how to move the database:
 On your **original PC**, export the database using `mysqldump`:
 
 ```bash
-mysqldump -u root -p barangay_blotter > database_backup.sql
+mysqldump -u root -p barangay > database_backup.sql
 ```
 
 You'll be asked for your MySQL password. This creates a `database_backup.sql` file.
@@ -289,10 +289,44 @@ Copy this file to a USB drive or cloud storage.
 On the **new PC**, after setting up MySQL with the same credentials:
 
 ```bash
-mysql -u root -p barangay_blotter < database_backup.sql
+mysql -u root -p barangay < database_backup.sql
 ```
 
 Enter your MySQL password when prompted.
+
+#### Importing with XAMPP (phpMyAdmin or Command Line)
+
+If you are using XAMPP, you can import the SQL file using either phpMyAdmin (web interface) or the command line:
+
+**A. Using phpMyAdmin (Recommended for Beginners)**
+
+1. Open XAMPP Control Panel and start **Apache** and **MySQL**.
+2. Go to [http://localhost/phpmyadmin](http://localhost/phpmyadmin) in your browser.
+3. In the left sidebar, click **New** to create a new database (e.g., `barangay_blotter`).
+4. Select the new database from the sidebar.
+5. Click the **Import** tab at the top.
+6. Click **Choose File** and select your `database_backup.sql` file.
+7. Scroll down and click **Go** to start the import.
+8. Wait for the success message. Your data is now imported!
+
+**B. Using XAMPP Shell (Command Line)**
+
+1. Open the XAMPP Control Panel and click **Shell** (or open Command Prompt).
+2. Run the following command (replace `barangay_blotter` with your database name if different):
+     ```bash
+     mysql -u root -p barangay_blotter < path\to\database_backup.sql
+     ```
+     - If your MySQL has no password, omit `-p`.
+     - If you get an error about the database not existing, create it first in phpMyAdmin or with:
+         ```bash
+         mysql -u root -p -e "CREATE DATABASE barangay_blotter;"
+         ```
+
+3. After import, check phpMyAdmin to verify your tables and data.
+
+**Troubleshooting:**
+- If you see a `max_allowed_packet` error, increase the value in `my.ini` (XAMPP > MySQL > Config > my.ini) and restart MySQL.
+- If you get a collation error, make sure the database uses `utf8mb4_unicode_ci` collation.
 
 **Step 3: Verify the connection**
 
