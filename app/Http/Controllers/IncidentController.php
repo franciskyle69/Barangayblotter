@@ -13,12 +13,12 @@ use Inertia\Response;
 
 class IncidentController extends Controller
 {
-    private function assertCitizenCanSubmit(Request $request): void
+    private function assertCanSubmit(Request $request): void
     {
         $tenant = app('current_tenant');
         $role = $request->user()?->roleIn($tenant);
-        if (!in_array($role, [User::ROLE_CITIZEN, User::ROLE_RESIDENT], true)) {
-            abort(403, 'Only citizens can submit new incidents.');
+        if (!$role) {
+            abort(403, 'You must have a role in this barangay to report an incident.');
         }
     }
 
@@ -51,7 +51,7 @@ class IncidentController extends Controller
 
     public function create(): Response
     {
-        $this->assertCitizenCanSubmit(request());
+        $this->assertCanSubmit(request());
         $tenant = app('current_tenant');
         if (!$tenant->canAddIncident()) {
             abort(403, 'Your plan has reached the monthly incident limit.');
@@ -63,7 +63,7 @@ class IncidentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->assertCitizenCanSubmit($request);
+        $this->assertCanSubmit($request);
         $tenant = app('current_tenant');
         if (!$tenant->canAddIncident()) {
             return back()->with('error', 'Monthly incident limit reached.');
