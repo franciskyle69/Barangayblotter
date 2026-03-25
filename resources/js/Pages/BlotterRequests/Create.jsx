@@ -1,5 +1,5 @@
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function BlotterRequestsCreate({ incidents, initialIncidentId }) {
   const { data, setData, post, processing } = useForm({
@@ -8,7 +8,7 @@ export default function BlotterRequestsCreate({ incidents, initialIncidentId }) 
   });
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Request certified blotter copy</h1>
       <form onSubmit={(e) => { e.preventDefault(); post('/blotter-requests'); }} className="max-w-md space-y-4 rounded-lg bg-white p-6 shadow">
         <div>
@@ -44,6 +44,6 @@ export default function BlotterRequestsCreate({ incidents, initialIncidentId }) 
           <Link href="/blotter-requests" className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-300">Cancel</Link>
         </div>
       </form>
-    </AppLayout>
+    </TenantLayout>
   );
 }

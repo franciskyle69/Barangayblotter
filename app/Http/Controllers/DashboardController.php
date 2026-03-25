@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Incident;
 use App\Models\PatrolLog;
+use App\Models\BlotterRequest;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,26 +17,25 @@ class DashboardController extends Controller
         $user = $request->user();
         $role = $user->roleIn($tenant);
 
-        $incidentsQuery = $tenant->incidents();
+        // Global scope automatically filters by current tenant
         $canSeeAnalytics = $tenant->plan->analytics_dashboard;
 
         $stats = [
-            'incidents_total' => (clone $incidentsQuery)->count(),
-            'incidents_this_month' => (clone $incidentsQuery)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count(),
-            'open' => (clone $incidentsQuery)->where('status', Incident::STATUS_OPEN)->count(),
-            'under_mediation' => (clone $incidentsQuery)->where('status', Incident::STATUS_UNDER_MEDIATION)->count(),
-            'settled' => (clone $incidentsQuery)->where('status', Incident::STATUS_SETTLED)->count(),
-            'escalated' => (clone $incidentsQuery)->where('status', Incident::STATUS_ESCALATED)->count(),
+            'incidents_total' => Incident::count(),
+            'incidents_this_month' => Incident::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count(),
+            'open' => Incident::where('status', Incident::STATUS_OPEN)->count(),
+            'under_mediation' => Incident::where('status', Incident::STATUS_UNDER_MEDIATION)->count(),
+            'settled' => Incident::where('status', Incident::STATUS_SETTLED)->count(),
+            'escalated' => Incident::where('status', Incident::STATUS_ESCALATED)->count(),
         ];
 
-        $recentIncidents = $tenant->incidents()
-            ->with(['reportedBy', 'mediations.mediator'])
+        $recentIncidents = Incident::with(['reportedBy', 'mediations.mediator'])
             ->latest()
             ->limit(10)
             ->get();
 
         $recentPatrols = $tenant->plan->central_monitoring
-            ? $tenant->patrolLogs()->with('user')->latest()->limit(5)->get()
+            ? PatrolLog::with('user')->latest()->limit(5)->get()
             : collect();
 
         $myBlotterRequests = $user->blotterRequests()

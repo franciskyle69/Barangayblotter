@@ -18,11 +18,11 @@ class TenantSeeder extends Seeder
 
         // Malaybalay City, Bukidnon — sample barangays by district
         $tenants = [
-            ['name' => 'Casisang', 'slug' => 'casisang', 'barangay' => 'South Highway', 'plan' => $basic],
-            ['name' => 'Sumpong', 'slug' => 'sumpong', 'barangay' => 'North Highway', 'plan' => $standard],
-            ['name' => 'San Jose', 'slug' => 'san-jose', 'barangay' => 'South Highway', 'plan' => $premium],
-            ['name' => 'Kalasungay', 'slug' => 'kalasungay', 'barangay' => 'North Highway', 'plan' => $standard],
-            ['name' => 'Caburacanan', 'slug' => 'caburacanan', 'barangay' => 'Upper Pulangi', 'plan' => $basic],
+            ['name' => 'Casisang', 'slug' => 'casisang', 'subdomain' => 'casisang', 'barangay' => 'South Highway', 'plan' => $basic],
+            ['name' => 'Sumpong', 'slug' => 'sumpong', 'subdomain' => 'sumpong', 'barangay' => 'North Highway', 'plan' => $standard],
+            ['name' => 'San Jose', 'slug' => 'san-jose', 'subdomain' => 'sanjose', 'barangay' => 'South Highway', 'plan' => $premium],
+            ['name' => 'Kalasungay', 'slug' => 'kalasungay', 'subdomain' => 'kalasungay', 'barangay' => 'North Highway', 'plan' => $standard],
+            ['name' => 'Caburacanan', 'slug' => 'caburacanan', 'subdomain' => 'caburacanan', 'barangay' => 'Upper Pulangi', 'plan' => $basic],
         ];
 
         $admin = User::firstOrCreate(
@@ -51,6 +51,7 @@ class TenantSeeder extends Seeder
                 [
                     'plan_id' => $t['plan']->id,
                     'name' => $t['name'],
+                    'subdomain' => $t['subdomain'],
                     'barangay' => $t['barangay'],
                     'address' => $t['name'] . ', Malaybalay City, Bukidnon',
                     'contact_phone' => null,

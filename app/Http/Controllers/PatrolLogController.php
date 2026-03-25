@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PatrolLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -10,10 +11,25 @@ use Inertia\Response;
 
 class PatrolLogController extends Controller
 {
-    public function index(Request $request): Response
+    private function assertAdminOrStaff(Request $request): void
     {
         $tenant = app('current_tenant');
-        $query = $tenant->patrolLogs()->with('user');
+        $role = $request->user()?->roleIn($tenant);
+        if (!in_array($role, [
+            User::ROLE_PUROK_SECRETARY,
+            User::ROLE_PUROK_LEADER,
+            User::ROLE_COMMUNITY_WATCH,
+            User::ROLE_MEDIATOR,
+        ], true)) {
+            abort(403, 'Only barangay admin/staff can access patrol logs.');
+        }
+    }
+
+    public function index(Request $request): Response
+    {
+        $this->assertAdminOrStaff($request);
+        // Global scope handles tenant filtering
+        $query = PatrolLog::with('user');
         if ($request->filled('date')) {
             $query->whereDate('patrol_date', $request->date);
         }
@@ -23,12 +39,13 @@ class PatrolLogController extends Controller
 
     public function create(): Response
     {
+        $this->assertAdminOrStaff(request());
         return Inertia::render('Patrol/Create');
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $tenant = app('current_tenant');
+        $this->assertAdminOrStaff($request);
         $validated = $request->validate([
             'patrol_date' => 'required|date',
             'start_time' => 'nullable|date_format:H:i',
@@ -39,7 +56,7 @@ class PatrolLogController extends Controller
             'response_details' => 'nullable|string',
             'response_time_minutes' => 'nullable|integer|min:0',
         ]);
-        $validated['tenant_id'] = $tenant->id;
+        // tenant_id is auto-set by BelongsToTenant trait
         $validated['user_id'] = $request->user()->id;
         PatrolLog::create($validated);
         return redirect()->route('patrol.index')->with('success', 'Patrol log saved.');
@@ -47,19 +64,15 @@ class PatrolLogController extends Controller
 
     public function edit(PatrolLog $patrol): Response|RedirectResponse
     {
-        $tenant = app('current_tenant');
-        if ($patrol->tenant_id !== $tenant->id) {
-            abort(404);
-        }
+        $this->assertAdminOrStaff(request());
+        // Global scope ensures only tenant's patrol logs are accessible
         return Inertia::render('Patrol/Edit', ['patrol' => $patrol]);
     }
 
     public function update(Request $request, PatrolLog $patrol): RedirectResponse
     {
-        $tenant = app('current_tenant');
-        if ($patrol->tenant_id !== $tenant->id) {
-            abort(404);
-        }
+        $this->assertAdminOrStaff($request);
+        // Global scope ensures only tenant's patrol logs are accessible
         $validated = $request->validate([
             'patrol_date' => 'required|date',
             'start_time' => 'nullable|date_format:H:i',

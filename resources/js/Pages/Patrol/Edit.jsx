@@ -1,5 +1,5 @@
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function PatrolEdit({ patrol }) {
   const patrolDate = patrol.patrol_date ? new Date(patrol.patrol_date).toISOString().slice(0, 10) : '';
@@ -17,7 +17,7 @@ export default function PatrolEdit({ patrol }) {
   });
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Edit patrol log</h1>
       <form onSubmit={(e) => { e.preventDefault(); put(`/patrol/${patrol.id}`); }} className="max-w-2xl space-y-4 rounded-lg bg-white p-6 shadow">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -63,6 +63,6 @@ export default function PatrolEdit({ patrol }) {
           <Link href="/patrol" className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-300">Cancel</Link>
         </div>
       </form>
-    </AppLayout>
+    </TenantLayout>
   );
 }

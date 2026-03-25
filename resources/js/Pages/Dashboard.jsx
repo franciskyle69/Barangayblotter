@@ -12,7 +12,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import AppLayout from './Layouts/AppLayout';
+import TenantLayout from './Layouts/TenantLayout';
 
 const STATUS_LABELS = {
   open: 'Open',
@@ -37,10 +37,11 @@ export default function Dashboard({ tenant, role, stats, recentIncidents, myBlot
     community_watch: 'Community Watch',
     mediator: 'Community Mediator',
     resident: 'Resident',
+    citizen: 'Citizen',
   };
 
   return (
-    <AppLayout>
+    <TenantLayout>
       {tenant && (
         <>
           <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
@@ -209,6 +210,6 @@ export default function Dashboard({ tenant, role, stats, recentIncidents, myBlot
           </div>
         </>
       )}
-    </AppLayout>
+    </TenantLayout>
   );
 }

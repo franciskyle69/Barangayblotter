@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BlotterRequest;
 use App\Models\Incident;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,24 +12,61 @@ use Inertia\Response;
 
 class BlotterRequestController extends Controller
 {
+    private function isCitizenLike(?string $role): bool
+    {
+        return in_array($role, [User::ROLE_RESIDENT, User::ROLE_CITIZEN], true);
+    }
+
+    private function canReviewRequests(?string $role): bool
+    {
+        return in_array($role, [
+            User::ROLE_PUROK_SECRETARY,
+            User::ROLE_PUROK_LEADER,
+            User::ROLE_COMMUNITY_WATCH,
+        ], true);
+    }
+
     public function index(Request $request): Response
     {
         $tenant = app('current_tenant');
         $user = $request->user();
         $role = $user->roleIn($tenant);
 
-        $query = BlotterRequest::where('tenant_id', $tenant->id)->with(['incident', 'requestedBy']);
-        if ($role === 'resident') {
+        // Global scope handles tenant filtering
+        $query = BlotterRequest::with(['incident', 'requestedBy', 'reviewedBy']);
+
+        if ($this->isCitizenLike($role)) {
             $query->where('requested_by_user_id', $user->id);
         }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->string('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->string('to'));
+        }
+
         $requests = $query->latest()->paginate(15);
-        return Inertia::render('BlotterRequests/Index', ['requests' => $requests, 'role' => $role]);
+        return Inertia::render('BlotterRequests/Index', [
+            'requests' => $requests,
+            'role' => $role,
+            'filters' => [
+                'status' => $request->string('status')->toString(),
+                'from' => $request->string('from')->toString(),
+                'to' => $request->string('to')->toString(),
+            ],
+        ]);
     }
 
     public function create(Request $request): Response
     {
-        $tenant = app('current_tenant');
-        $incidents = $tenant->incidents()->orderBy('incident_date', 'desc')->get();
+        // Global scope handles tenant filtering on Incident
+        $incidents = Incident::orderBy('incident_date', 'desc')->get();
         return Inertia::render('BlotterRequests/Create', [
             'incidents' => $incidents,
             'initialIncidentId' => $request->query('incident_id'),
@@ -37,17 +75,15 @@ class BlotterRequestController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $tenant = app('current_tenant');
         $validated = $request->validate([
             'incident_id' => 'required|exists:incidents,id',
             'purpose' => 'nullable|string|max:255',
         ]);
+        // Global scope ensures only tenant's incidents are found
         $incident = Incident::findOrFail($validated['incident_id']);
-        if ($incident->tenant_id !== $tenant->id) {
-            abort(404);
-        }
+
+        // tenant_id is auto-set by BelongsToTenant trait
         BlotterRequest::create([
-            'tenant_id' => $tenant->id,
             'incident_id' => $incident->id,
             'requested_by_user_id' => $request->user()->id,
             'purpose' => $validated['purpose'] ?? null,
@@ -59,20 +95,42 @@ class BlotterRequestController extends Controller
     public function approve(BlotterRequest $blotterRequest): RedirectResponse
     {
         $tenant = app('current_tenant');
-        if ($blotterRequest->tenant_id !== $tenant->id) {
-            abort(404);
+        $role = request()->user()?->roleIn($tenant);
+        if (!$this->canReviewRequests($role)) {
+            abort(403, 'Only barangay admin/staff can approve requests.');
         }
-        $blotterRequest->update(['status' => BlotterRequest::STATUS_APPROVED]);
+
+        $validated = request()->validate([
+            'remarks' => 'nullable|string|max:1000',
+        ]);
+
+        // Global scope ensures only tenant's requests are accessible
+        $blotterRequest->update([
+            'status' => BlotterRequest::STATUS_APPROVED,
+            'admin_user_id' => request()->user()->id,
+            'remarks' => $validated['remarks'] ?? null,
+        ]);
         return back()->with('success', 'Request approved.');
     }
 
     public function reject(BlotterRequest $blotterRequest): RedirectResponse
     {
         $tenant = app('current_tenant');
-        if ($blotterRequest->tenant_id !== $tenant->id) {
-            abort(404);
+        $role = request()->user()?->roleIn($tenant);
+        if (!$this->canReviewRequests($role)) {
+            abort(403, 'Only barangay admin/staff can reject requests.');
         }
-        $blotterRequest->update(['status' => BlotterRequest::STATUS_REJECTED]);
+
+        $validated = request()->validate([
+            'remarks' => 'nullable|string|max:1000',
+        ]);
+
+        // Global scope ensures only tenant's requests are accessible
+        $blotterRequest->update([
+            'status' => BlotterRequest::STATUS_REJECTED,
+            'admin_user_id' => request()->user()->id,
+            'remarks' => $validated['remarks'] ?? null,
+        ]);
         return back()->with('success', 'Request rejected.');
     }
 }

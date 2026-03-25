@@ -35,12 +35,21 @@ class HandleInertiaRequests extends Middleware
                     'id' => $tenant->id,
                     'name' => $tenant->name,
                     'slug' => $tenant->slug,
+                    'subdomain' => $tenant->subdomain,
+                    'custom_domain' => $tenant->custom_domain,
                     'plan' => [
                         'name' => $tenant->plan->name,
                         'mediation_scheduling' => $tenant->plan->mediation_scheduling,
                     ],
                 ];
             },
+            'current_tenant_role' => function () use ($request) {
+                if (!$request->user() || !app()->bound('current_tenant')) {
+                    return null;
+                }
+                return $request->user()->roleIn(app('current_tenant'));
+            },
+            'tenant_resolved_from' => fn () => app()->bound('tenant_resolved_from') ? app('tenant_resolved_from') : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

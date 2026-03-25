@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function MediationsIndex({ incidentsWithMediations }) {
   const formatDate = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -11,7 +11,7 @@ export default function MediationsIndex({ incidentsWithMediations }) {
   });
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Mediation scheduling</h1>
       <div className="overflow-hidden rounded-lg bg-white shadow">
         <table className="min-w-full divide-y divide-slate-200">
@@ -57,6 +57,6 @@ export default function MediationsIndex({ incidentsWithMediations }) {
           ))}
         </div>
       )}
-    </AppLayout>
+    </TenantLayout>
   );
 }

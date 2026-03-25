@@ -17,6 +17,7 @@ class User extends Authenticatable
     public const ROLE_COMMUNITY_WATCH = 'community_watch';
     public const ROLE_MEDIATOR = 'mediator';
     public const ROLE_RESIDENT = 'resident';
+    public const ROLE_CITIZEN = 'citizen';
 
     public static function tenantRoles(): array
     {
@@ -26,6 +27,7 @@ class User extends Authenticatable
             self::ROLE_COMMUNITY_WATCH => 'Community Watch',
             self::ROLE_MEDIATOR => 'Community Mediator',
             self::ROLE_RESIDENT => 'Resident',
+            self::ROLE_CITIZEN => 'Citizen',
         ];
     }
 

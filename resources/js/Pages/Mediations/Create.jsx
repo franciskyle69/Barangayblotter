@@ -1,5 +1,5 @@
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function MediationsCreate({ incident, mediators }) {
   const { data, setData, post, processing } = useForm({
@@ -9,7 +9,7 @@ export default function MediationsCreate({ incident, mediators }) {
   });
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Schedule mediation — Incident {incident?.blotter_number ?? `#${incident?.id}`}</h1>
       <form onSubmit={(e) => { e.preventDefault(); post('/mediations'); }} className="max-w-md space-y-4 rounded-lg bg-white p-6 shadow">
         <input type="hidden" name="incident_id" value={data.incident_id} />
@@ -43,6 +43,6 @@ export default function MediationsCreate({ incident, mediators }) {
           <Link href={`/incidents/${incident.id}`} className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-300">Cancel</Link>
         </div>
       </form>
-    </AppLayout>
+    </TenantLayout>
   );
 }

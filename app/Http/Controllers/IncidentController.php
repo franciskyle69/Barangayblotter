@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Incident;
 use App\Models\IncidentAttachment;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -12,10 +13,19 @@ use Inertia\Response;
 
 class IncidentController extends Controller
 {
+    private function assertCitizenCanSubmit(Request $request): void
+    {
+        $tenant = app('current_tenant');
+        $role = $request->user()?->roleIn($tenant);
+        if (!in_array($role, [User::ROLE_CITIZEN, User::ROLE_RESIDENT], true)) {
+            abort(403, 'Only citizens can submit new incidents.');
+        }
+    }
+
     public function index(Request $request): Response
     {
         $tenant = app('current_tenant');
-        $query = $tenant->incidents()->with(['reportedBy', 'mediations.mediator']);
+        $query = Incident::with(['reportedBy', 'mediations.mediator']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -41,6 +51,7 @@ class IncidentController extends Controller
 
     public function create(): Response
     {
+        $this->assertCitizenCanSubmit(request());
         $tenant = app('current_tenant');
         if (!$tenant->canAddIncident()) {
             abort(403, 'Your plan has reached the monthly incident limit.');
@@ -52,6 +63,7 @@ class IncidentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->assertCitizenCanSubmit($request);
         $tenant = app('current_tenant');
         if (!$tenant->canAddIncident()) {
             return back()->with('error', 'Monthly incident limit reached.');
@@ -72,7 +84,7 @@ class IncidentController extends Controller
             'attachments.*' => 'nullable|file|max:10240',
         ]);
 
-        $validated['tenant_id'] = $tenant->id;
+        // tenant_id is auto-set by BelongsToTenant trait
         $validated['reported_by_user_id'] = $request->user()->id;
         $validated['submitted_online'] = false;
 
@@ -96,21 +108,16 @@ class IncidentController extends Controller
 
     public function show(Request $request, Incident $incident): Response|RedirectResponse
     {
-        $tenant = app('current_tenant');
-        if ($incident->tenant_id !== $tenant->id) {
-            abort(404);
-        }
+        // Global scope ensures only tenant's incidents are accessible
         $incident->load(['attachments', 'mediations.mediator', 'reportedBy']);
+        $tenant = app('current_tenant');
         $role = $request->user()->roleIn($tenant);
         return Inertia::render('Incidents/Show', ['incident' => $incident, 'role' => $role]);
     }
 
     public function edit(Incident $incident): Response|RedirectResponse
     {
-        $tenant = app('current_tenant');
-        if ($incident->tenant_id !== $tenant->id) {
-            abort(404);
-        }
+        // Global scope ensures only tenant's incidents are accessible
         return Inertia::render('Incidents/Edit', [
             'incident' => $incident,
             'statuses' => Incident::statuses(),
@@ -119,11 +126,7 @@ class IncidentController extends Controller
 
     public function update(Request $request, Incident $incident): RedirectResponse
     {
-        $tenant = app('current_tenant');
-        if ($incident->tenant_id !== $tenant->id) {
-            abort(404);
-        }
-
+        // Global scope ensures only tenant's incidents are accessible
         $validated = $request->validate([
             'incident_type' => 'required|string|max:255',
             'description' => 'required|string',
@@ -144,10 +147,7 @@ class IncidentController extends Controller
 
     public function destroy(Incident $incident): RedirectResponse
     {
-        $tenant = app('current_tenant');
-        if ($incident->tenant_id !== $tenant->id) {
-            abort(404);
-        }
+        // Global scope ensures only tenant's incidents are accessible
         foreach ($incident->attachments as $att) {
             Storage::disk('public')->delete($att->file_path);
         }

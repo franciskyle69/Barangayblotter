@@ -12,7 +12,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import AppLayout from '../Layouts/AppLayout';
+import CentralLayout from '../Layouts/CentralLayout';
 
 const STATUS_LABELS = {
   open: 'Open',
@@ -38,7 +38,7 @@ export default function SuperDashboard({ tenants, totalIncidents, incidentsThisM
     : [];
 
   return (
-    <AppLayout>
+    <CentralLayout>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Malaybalay City — Central Monitoring</h1>
         <Link href="/super/tenants" className="rounded-devias bg-slate-600 px-4 py-2 text-white hover:bg-slate-700">All Barangays</Link>
@@ -189,6 +189,6 @@ export default function SuperDashboard({ tenants, totalIncidents, incidentsThisM
           </tbody>
         </table>
       </div>
-    </AppLayout>
+    </CentralLayout>
   );
 }

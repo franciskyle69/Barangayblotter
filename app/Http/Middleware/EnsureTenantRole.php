@@ -8,11 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureTenantRole
 {
-    public function __construct(
-        private readonly array $allowedRoles
-    ) {}
-
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string ...$allowedRoles): Response
     {
         if ($request->user()?->is_super_admin) {
             return $next($request);
@@ -21,7 +17,10 @@ class EnsureTenantRole
         if (!$tenant) {
             return redirect()->route('tenant.select');
         }
-        if (!$request->user()->hasRoleIn($tenant, $this->allowedRoles)) {
+        if ($allowedRoles === []) {
+            return $next($request);
+        }
+        if (!$request->user()->hasRoleIn($tenant, $allowedRoles)) {
             abort(403, 'You do not have permission to perform this action.');
         }
         return $next($request);

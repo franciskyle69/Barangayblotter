@@ -10,7 +10,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PlanSeeder::class,
-            TenantSeeder::class,
+            // TenantSeeder::class, // Disabled: Create tenants manually via 'php artisan tenant:create' command
             UserSeeder::class,
         ]);
     }

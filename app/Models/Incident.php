@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Incident extends Model
 {
+    use BelongsToTenant, HasFactory;
+
     public const STATUS_OPEN = 'open';
     public const STATUS_UNDER_MEDIATION = 'under_mediation';
     public const STATUS_SETTLED = 'settled';
@@ -58,17 +62,14 @@ class Incident extends Model
                 if ($tenant && $tenant->plan->auto_case_number) {
                     $prefix = strtoupper(substr($tenant->slug, 0, 3));
                     $year = now()->format('Y');
-                    $seq = $tenant->incidents()->whereYear('created_at', now()->year)->count() + 1;
+                    $seq = $tenant->incidents()->withoutGlobalScope('tenant')->where('tenant_id', $tenant->id)->whereYear('created_at', now()->year)->count() + 1;
                     $incident->blotter_number = sprintf('%s-%s-%04d', $prefix, $year, $seq);
                 }
             }
         });
     }
 
-    public function tenant(): BelongsTo
-    {
-        return $this->belongsTo(Tenant::class);
-    }
+    // tenant() relationship is provided by BelongsToTenant trait
 
     public function complainantUser(): BelongsTo
     {

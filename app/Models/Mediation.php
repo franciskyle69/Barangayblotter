@@ -2,17 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Mediation extends Model
 {
+    use BelongsToTenant;
+
     public const STATUS_SCHEDULED = 'scheduled';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
     public const STATUS_NO_SHOW = 'no_show';
 
     protected $fillable = [
+        'tenant_id',
         'incident_id',
         'mediator_user_id',
         'scheduled_at',
@@ -29,6 +33,8 @@ class Mediation extends Model
             'completed_at' => 'datetime',
         ];
     }
+
+    // tenant() relationship is provided by BelongsToTenant trait
 
     public function incident(): BelongsTo
     {

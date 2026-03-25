@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PatrolLog extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'tenant_id',
         'user_id',
@@ -27,10 +30,7 @@ class PatrolLog extends Model
         ];
     }
 
-    public function tenant(): BelongsTo
-    {
-        return $this->belongsTo(Tenant::class);
-    }
+    // tenant() relationship is provided by BelongsToTenant trait
 
     public function user(): BelongsTo
     {

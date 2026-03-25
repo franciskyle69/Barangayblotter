@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm, usePage } from '@inertiajs/react';
 
 export default function Login() {
-  const { errors, logo_url } = usePage().props;
+  const { errors, logo_url, current_tenant } = usePage().props;
   const [logoError, setLogoError] = useState(false);
   const { data, setData, post, processing } = useForm({
     email: '',
@@ -11,6 +11,9 @@ export default function Login() {
   });
 
   const logoSrc = logo_url || '/images/logo.png';
+  const title = current_tenant?.name
+    ? `Barangay ${current_tenant.name} Blotter`
+    : 'Malaybalay City Barangay Blotter';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f9fafb] px-4 font-sans antialiased">
@@ -28,7 +31,7 @@ export default function Login() {
               <span className="flex size-full items-center justify-center rounded-devias bg-devias-primary text-2xl font-bold text-white">MB</span>
             )}
           </div>
-          <h1 className="text-2xl font-bold leading-tight text-slate-900">Malaybalay City<br />Barangay Blotter</h1>
+          <h1 className="text-2xl font-bold leading-tight text-slate-900">{title}</h1>
         </div>
         {errors && Object.keys(errors).length > 0 && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">

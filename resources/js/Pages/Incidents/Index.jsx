@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 const STATUS_CLASS = {
   open: 'bg-amber-100 text-amber-800',
@@ -9,7 +9,7 @@ const STATUS_CLASS = {
 };
 
 export default function IncidentsIndex({ incidents, statuses, role }) {
-  const canEdit = role !== 'resident';
+  const canEdit = !['resident', 'citizen'].includes(role);
 
   const handleFilter = (e) => {
     e.preventDefault();
@@ -22,7 +22,7 @@ export default function IncidentsIndex({ incidents, statuses, role }) {
   };
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Incidents / Blotter</h1>
         <Link
@@ -97,6 +97,6 @@ export default function IncidentsIndex({ incidents, statuses, role }) {
           ))}
         </div>
       )}
-    </AppLayout>
+    </TenantLayout>
   );
 }

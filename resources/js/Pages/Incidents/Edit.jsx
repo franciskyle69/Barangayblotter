@@ -1,5 +1,5 @@
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function IncidentsEdit({ incident, statuses }) {
   const incidentDate = incident.incident_date ? new Date(incident.incident_date).toISOString().slice(0, 16) : '';
@@ -18,7 +18,7 @@ export default function IncidentsEdit({ incident, statuses }) {
   });
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Edit incident {incident.blotter_number ?? `#${incident.id}`}</h1>
       {errors && Object.keys(errors).length > 0 && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -87,6 +87,6 @@ export default function IncidentsEdit({ incident, statuses }) {
           <Link href={`/incidents/${incident.id}`} className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-300">Cancel</Link>
         </div>
       </form>
-    </AppLayout>
+    </TenantLayout>
   );
 }

@@ -1,5 +1,5 @@
 import { Link, router } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function PatrolIndex({ patrolLogs }) {
   const items = patrolLogs?.data ?? patrolLogs ?? [];
@@ -10,7 +10,7 @@ export default function PatrolIndex({ patrolLogs }) {
   };
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Patrol logs</h1>
         <Link href="/patrol/create" className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Log patrol</Link>
@@ -46,6 +46,6 @@ export default function PatrolIndex({ patrolLogs }) {
           ))}
         </div>
       )}
-    </AppLayout>
+    </TenantLayout>
   );
 }

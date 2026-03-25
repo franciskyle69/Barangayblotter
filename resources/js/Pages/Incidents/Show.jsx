@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 const STATUS_CLASS = {
   open: 'bg-amber-100 text-amber-800',
@@ -10,7 +10,7 @@ const STATUS_CLASS = {
 
 export default function IncidentsShow({ incident, role }) {
   const { current_tenant } = usePage().props;
-  const canEdit = role !== 'resident';
+  const canEdit = !['resident', 'citizen'].includes(role);
   const canScheduleMediation = current_tenant?.plan?.mediation_scheduling &&
     incident.status !== 'settled' && incident.status !== 'escalated_to_barangay';
   const blotterLabel = incident.blotter_number ?? `#${incident.id}`;
@@ -18,7 +18,7 @@ export default function IncidentsShow({ incident, role }) {
   const formatDate = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Incident {blotterLabel}</h1>
         {canEdit && (
@@ -109,6 +109,6 @@ export default function IncidentsShow({ incident, role }) {
           )}
         </div>
       </div>
-    </AppLayout>
+    </TenantLayout>
   );
 }

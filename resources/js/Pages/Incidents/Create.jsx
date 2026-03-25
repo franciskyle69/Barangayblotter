@@ -1,5 +1,5 @@
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '../Layouts/AppLayout';
+import TenantLayout from '../Layouts/TenantLayout';
 
 export default function IncidentsCreate({ statuses }) {
   const { data, setData, post, processing, errors } = useForm({
@@ -23,7 +23,7 @@ export default function IncidentsCreate({ statuses }) {
   };
 
   return (
-    <AppLayout>
+    <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Record new incident</h1>
       {errors && Object.keys(errors).length > 0 && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -140,6 +140,6 @@ export default function IncidentsCreate({ statuses }) {
           <Link href="/incidents" className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-300">Cancel</Link>
         </div>
       </form>
-    </AppLayout>
+    </TenantLayout>
   );
 }

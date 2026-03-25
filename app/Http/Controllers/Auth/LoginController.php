@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,14 +26,45 @@ class LoginController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            if (Auth::user()->is_super_admin) {
-                return redirect()->intended(route('super.dashboard'));
+
+            $user = Auth::user();
+
+            // Tenant domain login policy:
+            // - super admins must use central domain
+            // - tenant users must belong to this resolved tenant
+            if (app()->bound('current_tenant')) {
+                $tenant = app('current_tenant');
+
+                if ($user->is_super_admin) {
+                    Auth::logout();
+                    return back()->withErrors([
+                        'email' => 'Super admins must sign in from the central admin domain.',
+                    ])->onlyInput('email');
+                }
+
+                if ($user->tenants()->where('tenants.id', $tenant->id)->exists()) {
+                    session(['current_tenant_id' => $tenant->id]);
+                    return redirect()->intended(route('dashboard'));
+                }
+
+                // User doesn't belong to this tenant's domain
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'You do not have access to this barangay.',
+                ])->onlyInput('email');
             }
-            if (Auth::user()->tenants()->count() === 1) {
-                session(['current_tenant_id' => Auth::user()->tenants()->first()->id]);
-                return redirect()->intended(route('dashboard'));
+
+            // Central domain login policy:
+            // - only super admins can sign in here
+            if (!$user->is_super_admin) {
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'Tenant users must sign in from their barangay domain.',
+                ])->onlyInput('email');
             }
-            return redirect()->intended(route('tenant.select'));
+
+            // Super admin → city dashboard
+            return redirect()->intended(route('super.dashboard'));
         }
 
         return back()->withErrors([

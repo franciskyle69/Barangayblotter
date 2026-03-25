@@ -16,6 +16,29 @@ export default {
                 sans: ['Inter', ...defaultTheme.fontFamily.sans],
             },
             colors: {
+                // Tenant App (Barangay Dashboard) - Purple/Indigo theme
+                tenant: {
+                    primary: '#635bff',
+                    'primary-light': '#ecf0ff',
+                    'sidebar': '#121621',
+                    'accent': '#0ea5e9',
+                    'success': '#10b981',
+                    'warning': '#f59e0b',
+                    'danger': '#ef4444',
+                    'bg': '#f8fafc',
+                },
+                // Central App (City Admin) - Deep Blue theme
+                central: {
+                    primary: '#1e40af',
+                    'primary-light': '#dbeafe',
+                    'sidebar': '#0f172a',
+                    'accent': '#06b6d4',
+                    'success': '#059669',
+                    'warning': '#d97706',
+                    'danger': '#dc2626',
+                    'bg': '#f0f9ff',
+                },
+                // Legacy devias colors (for backward compatibility)
                 devias: {
                     primary: '#635bff',
                     'primary-light': '#ecf0ff',
