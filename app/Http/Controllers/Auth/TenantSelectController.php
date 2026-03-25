@@ -24,8 +24,16 @@ class TenantSelectController extends Controller
         if (!$user->tenants()->where('tenants.id', $tenantId)->exists()) {
             abort(403);
         }
+        
+        // Ensure the user has a role assigned in this tenant
+        $pivot = $user->tenants()->where('tenants.id', $tenantId)->first()?->pivot;
+        if (!$pivot || !$pivot->role) {
+            // Assign default citizen role if missing
+            $user->tenants()->updateExistingPivot($tenantId, ['role' => \App\Models\User::ROLE_CITIZEN]);
+        }
+        
         session(['current_tenant_id' => (int) $tenantId]);
-        app()->instance('current_tenant', Tenant::find($tenantId));
+        app()->instance('current_tenant', \App\Models\Tenant::find($tenantId));
         return redirect()->route('dashboard');
     }
 }
