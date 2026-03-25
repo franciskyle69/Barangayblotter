@@ -1,8 +1,13 @@
-import { useForm, Link } from '@inertiajs/react';
+import { useState } from 'react';
+import { useForm, Link, router } from '@inertiajs/react';
 import CentralLayout from '../Layouts/CentralLayout';
 
 export default function TenantForm({ tenant, plans }) {
   const isEditing = !!tenant;
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deletingTenant, setDeletingTenant] = useState(false);
+  
   const { data, setData, post, put, processing, errors } = useForm({
     name: tenant?.name ?? '',
     slug: tenant?.slug ?? '',
@@ -22,6 +27,24 @@ export default function TenantForm({ tenant, plans }) {
     } else {
       post('/super/tenants');
     }
+  };
+
+  const handleDeleteTenant = () => {
+    if (deleteConfirmation !== tenant.name) {
+      alert('Barangay name does not match. Please try again.');
+      return;
+    }
+
+    setDeletingTenant(true);
+    router.delete(`/super/tenants/${tenant.id}`, {
+      onSuccess: () => {
+        setShowDeleteModal(false);
+        setDeleteConfirmation('');
+      },
+      onFinish: () => {
+        setDeletingTenant(false);
+      },
+    });
   };
 
   const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
@@ -126,6 +149,25 @@ export default function TenantForm({ tenant, plans }) {
           <span className="text-xs text-slate-500">Inactive tenants cannot be accessed via subdomain or custom domain.</span>
         </div>
 
+        {/* Delete Danger Zone */}
+        {isEditing && (
+          <div className="rounded-lg border-2 border-red-200 bg-red-50 p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-red-900">⚠️ Danger Zone</h3>
+              <p className="mt-2 text-sm text-red-800">
+                Deleting this barangay will permanently remove all associated data including incidents, mediations, patrol logs, and blotter requests. This action cannot be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            >
+              Delete Barangay
+            </button>
+          </div>
+        )}
+
         {/* Submit */}
         <div className="flex justify-end gap-3 pt-4">
           <Link href="/super/tenants" className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</Link>
@@ -134,6 +176,67 @@ export default function TenantForm({ tenant, plans }) {
           </button>
         </div>
       </form>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+            <div className="border-b border-slate-200 px-6 py-4">
+              <h2 className="text-xl font-bold text-red-900">Delete Barangay?</h2>
+            </div>
+
+            <div className="space-y-4 px-6 py-4">
+              <div className="rounded-lg bg-red-50 p-4">
+                <p className="text-sm font-semibold text-red-900">⚠️ This action is permanent!</p>
+                <p className="mt-2 text-sm text-red-800">
+                  You are about to delete <span className="font-bold">"{tenant.name}"</span> and all its associated data:
+                </p>
+                <ul className="mt-3 space-y-1 text-sm text-red-700">
+                  <li>• All incidents and their attachments</li>
+                  <li>• All mediations</li>
+                  <li>• All patrol logs</li>
+                  <li>• All blotter requests</li>
+                  <li>• User associations</li>
+                </ul>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  To confirm, type the barangay name: <span className="font-bold text-red-600">"{tenant.name}"</span>
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                  placeholder={tenant.name}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 border-t border-slate-200 px-6 py-4">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmation('');
+                }}
+                disabled={deletingTenant}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTenant}
+                disabled={deletingTenant || deleteConfirmation !== tenant.name}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingTenant ? 'Deleting…' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CentralLayout>
   );
 }
