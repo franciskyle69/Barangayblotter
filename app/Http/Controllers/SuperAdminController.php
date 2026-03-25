@@ -147,10 +147,10 @@ class SuperAdminController extends Controller
                 $tenant->mediations()->delete();
                 $tenant->patrolLogs()->delete();
                 $tenant->blotterRequests()->delete();
-                
+
                 // Detach users
                 $tenant->users()->detach();
-                
+
                 // Delete the tenant
                 $tenant->delete();
             });
@@ -164,13 +164,13 @@ class SuperAdminController extends Controller
     public function tenantUsers(Tenant $tenant): Response
     {
         $tenant->load([
-            'users' => fn ($query) => $query->select('users.id', 'name', 'email', 'is_super_admin')->orderBy('name'),
+            'users' => fn($query) => $query->select('users.id', 'name', 'email', 'is_super_admin')->orderBy('name'),
             'plan',
         ]);
 
         return Inertia::render('Super/TenantUsers', [
             'tenant' => $tenant,
-            'users' => $tenant->users->map(fn (User $user) => [
+            'users' => $tenant->users->map(fn(User $user) => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,

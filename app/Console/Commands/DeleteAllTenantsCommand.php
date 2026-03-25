@@ -59,7 +59,7 @@ class DeleteAllTenantsCommand extends Command
         try {
             DB::transaction(function () {
                 $tenants = Tenant::all();
-                
+
                 foreach ($tenants as $tenant) {
                     // Delete all related data
                     $tenant->incidents()->delete();

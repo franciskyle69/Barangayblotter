@@ -3,6 +3,7 @@
 ## 🚀 Starting the System in 5 Minutes
 
 ### Prerequisites
+
 - PHP 8.2+ (check: `php --version`)
 - Composer (check: `composer --version`)
 - Node.js & npm (check: `node --version`)
@@ -13,6 +14,7 @@
 ## Option 1: First Time Setup (Fresh Install)
 
 ### Step 1: Install Dependencies
+
 ```powershell
 # Install PHP packages
 composer install
@@ -22,6 +24,7 @@ npm install
 ```
 
 ### Step 2: Setup Environment
+
 ```powershell
 # Copy example environment file
 copy .env.example .env
@@ -31,6 +34,7 @@ php artisan key:generate
 ```
 
 ### Step 3: Setup Database
+
 ```powershell
 # Create empty SQLite database file
 New-Item -ItemType File -Path database\database.sqlite -Force
@@ -40,6 +44,7 @@ php artisan migrate:fresh --seed
 ```
 
 ### Step 4: Setup Storage & Assets
+
 ```powershell
 # Create storage link for file uploads
 php artisan storage:link
@@ -49,12 +54,15 @@ npm run build
 ```
 
 ### Step 5: Start the Application
+
 **Terminal 1 - Laravel Server:**
+
 ```powershell
 php artisan serve
 ```
 
 **Terminal 2 - Frontend Dev Server (optional, for hot reload):**
+
 ```powershell
 npm run dev
 ```
@@ -82,17 +90,20 @@ Open http://127.0.0.1:8000 in your browser.
 ## 🔐 Demo Login Credentials
 
 ### Super Admin (City-wide Access)
+
 - **Email**: `city@malaybalay.test`
 - **Password**: `password`
 - **Access**: City admin dashboard, all barangays monitoring
 
 ### Barangay Staff
+
 - **Email**: `admin@malaybalay.test`
 - **Password**: `password`
 - **Access**: Dashboard, incidents, mediations, patrol logs, blotter requests
 - **Barangays**: Casisang, Sumpong, San Jose, Kalasungay, Caburacanan
 
 ### Alternative Super Admin
+
 - **Email**: `admin@admin`
 - **Password**: `admin`
 - **Access**: Full admin capabilities
@@ -102,6 +113,7 @@ Open http://127.0.0.1:8000 in your browser.
 ## 📋 Available Commands
 
 ### Database
+
 ```powershell
 # Initial setup (wipes DB, rebuilds, adds demo data)
 php artisan migrate:fresh --seed
@@ -117,6 +129,7 @@ php artisan migrate:reset
 ```
 
 ### Frontend
+
 ```powershell
 # Build once
 npm run build
@@ -126,6 +139,7 @@ npm run dev
 ```
 
 ### Testing
+
 ```powershell
 # Run all tests
 php artisan test
@@ -138,6 +152,7 @@ php artisan test --coverage
 ```
 
 ### Artisan
+
 ```powershell
 # List all available commands
 php artisan list
@@ -157,32 +172,41 @@ php artisan view:clear
 ## 🔧 Common Issues & Solutions
 
 ### Issue: "No application key has been generated"
+
 ```powershell
 php artisan key:generate
 ```
 
 ### Issue: "SQLSTATE[HY000]: General error: 1 no such table"
+
 Your database needs migrations. Run:
+
 ```powershell
 php artisan migrate
 ```
 
 ### Issue: "Could not open input file: artisan"
+
 Make sure you're in the project root directory:
+
 ```powershell
 cd c:\Users\Francis\Desktop\blotter\Barangayblotter
 ```
 
 ### Issue: "Port 8000 already in use"
+
 Specify a different port:
+
 ```powershell
 php artisan serve --port=8001
 ```
 
 ### Issue: "npm: The term 'npm' is not recognized"
+
 Node.js is not installed or not in PATH. Download and install from https://nodejs.org/
 
 ### Issue: Frontend not updating
+
 Make sure `npm run dev` is running in a separate terminal.
 
 ---
@@ -219,26 +243,31 @@ Barangayblotter/
 ## 🎯 Key Features to Try
 
 ### 1. **Login & Barangay Selection**
+
 - Go to `/login`
 - Use `admin@malaybalay.test` / `password`
 - Select a barangay (e.g., Casisang)
 
 ### 2. **Create an Incident**
+
 - Dashboard → Incidents → Create New
 - Fill in form and attach a file
 - View in incident list
 
 ### 3. **Schedule Mediation** (Standard/Premium plans)
+
 - Dashboard → Mediations → Create New
 - Select incident
 - Assign mediator and schedule date
 
 ### 4. **View City Dashboard** (Super Admin)
+
 - Logout and login as `city@malaybalay.test`
 - View city-wide statistics
 - Monitor all barangays
 
 ### 5. **Switch Barangays**
+
 - Use tenant switcher in top navbar
 - Switch to different barangay
 - Data automatically scoped
@@ -248,6 +277,7 @@ Barangayblotter/
 ## 🐛 Testing the System
 
 ### Run Feature Tests
+
 ```powershell
 # All tests
 php artisan test
@@ -260,6 +290,7 @@ php artisan test --filter test_incident_queries_are_scoped_by_tenant
 ```
 
 ### Interactive Testing (Tinker)
+
 ```powershell
 php artisan tinker
 
@@ -276,6 +307,7 @@ php artisan tinker
 ## 🚀 Deployment Notes
 
 When deploying to production:
+
 1. Copy `.env.example` to `.env` and set production values
 2. Set `APP_DEBUG=false`
 3. Run `php artisan key:generate` if new install

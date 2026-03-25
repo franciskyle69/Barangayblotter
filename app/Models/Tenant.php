@@ -55,11 +55,11 @@ class Tenant extends Model
     public function getDomains(): array
     {
         $domains = [];
-        
+
         if ($this->custom_domain) {
             $domains[] = $this->custom_domain;
         }
-        
+
         if ($this->subdomain) {
             $baseDomain = config('app.url');
             // Extract base domain from APP_URL
@@ -67,7 +67,7 @@ class Tenant extends Model
             $base = $matches[1] ?? 'localhost';
             $domains[] = "{$this->subdomain}.{$base}";
         }
-        
+
         return $domains;
     }
 
@@ -92,7 +92,7 @@ class Tenant extends Model
         $baseDomain = strtolower(config('app.url'));
         preg_match('/https?:\/\/(.*?)(?::\d+)?(?:\/|$)/', $baseDomain, $matches);
         $base = strtolower($matches[1] ?? 'localhost');
-        
+
         if ($base && str_ends_with($host, '.' . $base)) {
             $subdomain = str_replace('.' . $base, '', $host);
             if ($subdomain && $subdomain !== 'www') {
@@ -117,11 +117,11 @@ class Tenant extends Model
             preg_match('/https?:\/\/(.*?)(?::\d+)?(?:\/|$)/', $appUrl, $matches);
             $base = $matches[1] ?? 'localhost';
             $scheme = str_starts_with($appUrl, 'https') ? 'https' : 'http';
-            
+
             // Extract port if present
             preg_match('/:\d+/', $appUrl, $portMatches);
             $port = $portMatches[0] ?? '';
-            
+
             return $scheme . '://' . $this->subdomain . '.' . $base . $port;
         }
 

@@ -30,11 +30,11 @@ if (!function_exists('tenant')) {
     {
         $manager = app('tenancy_manager');
         $tenantModel = $manager->current();
-        
+
         if ($key && $tenantModel) {
             return $tenantModel->{$key} ?? $default;
         }
-        
+
         return $tenantModel;
     }
 }

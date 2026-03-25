@@ -81,7 +81,7 @@ class TenancyManager
     public function run(Tenant $tenant, callable $callback)
     {
         $original = Session::get('current_tenant_id');
-        
+
         try {
             $this->initialize($tenant);
             return call_user_func($callback, $tenant);

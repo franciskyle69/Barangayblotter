@@ -29,7 +29,7 @@ class DeleteTenantCommand extends Command
     {
         // Get the tenant slug
         $slug = $this->argument('slug');
-        
+
         if (!$slug) {
             // Show list of tenants if no slug provided
             $this->displayTenantsList();
@@ -48,7 +48,7 @@ class DeleteTenantCommand extends Command
         $this->info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         $this->warn("TENANT DELETION WARNING");
         $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        
+
         $this->line("Tenant Information:");
         $this->line("  ID: <comment>{$tenant->id}</comment>");
         $this->line("  Name: <comment>{$tenant->name}</comment>");
@@ -93,7 +93,7 @@ class DeleteTenantCommand extends Command
         // Delete the tenant and all related data
         try {
             $this->info('Deleting tenant and all associated data...');
-            
+
             DB::transaction(function () use ($tenant) {
                 // Delete related data in order (respecting foreign keys if any)
                 $tenant->incidents()->delete();

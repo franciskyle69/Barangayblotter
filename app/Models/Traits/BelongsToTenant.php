@@ -29,7 +29,7 @@ trait BelongsToTenant
                     $builder->getModel()->getTable() . '.tenant_id',
                     app('current_tenant')->id
                 );
-            } 
+            }
             // Fallback: check session (set by our TenancyManager or middleware)
             elseif (session()->has('current_tenant_id')) {
                 $builder->where(
@@ -48,7 +48,7 @@ trait BelongsToTenant
             // Try container first (middleware)
             if (app()->bound('current_tenant')) {
                 $model->tenant_id = app('current_tenant')->id;
-            } 
+            }
             // Fallback to session (TenancyManager)
             elseif (session()->has('current_tenant_id')) {
                 $model->tenant_id = session('current_tenant_id');

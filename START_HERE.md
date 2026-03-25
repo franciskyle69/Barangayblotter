@@ -42,12 +42,12 @@ Then follow the "Absolute Minimum" above.
 
 ## 🌐 Access
 
-| URL | Purpose |
-|-----|---------|
-| http://127.0.0.1:8000 | Main application |
-| http://127.0.0.1:8000/login | Login page |
-| http://127.0.0.1:8000/super/dashboard | City admin dashboard |
-| http://localhost:5173 | Vite dev server (if running) |
+| URL                                   | Purpose                      |
+| ------------------------------------- | ---------------------------- |
+| http://127.0.0.1:8000                 | Main application             |
+| http://127.0.0.1:8000/login           | Login page                   |
+| http://127.0.0.1:8000/super/dashboard | City admin dashboard         |
+| http://localhost:5173                 | Vite dev server (if running) |
 
 ---
 
@@ -72,17 +72,21 @@ Super Admin:
 ## ⚠️ Terminal Issues?
 
 **Laravel won't start?**
+
 ```powershell
 php artisan serve --port=8001
 ```
 
 **npm not found?**
+
 - Install Node.js from https://nodejs.org/
 
 **PHP not found?**
+
 - Install PHP 8.2+ or add to Windows PATH
 
 **Database errors?**
+
 ```powershell
 php artisan migrate:fresh --seed
 ```
