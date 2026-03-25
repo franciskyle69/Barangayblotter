@@ -19,165 +19,196 @@ A multi-tenant Laravel web system for **Malaybalay City, Bukidnon** barangay off
 
 ---
 
-## Run the application on another PC
+## Setup on a New PC (Step-by-Step)
 
-Follow these steps on any machine where you want to run the project (after cloning from GitHub or copying the folder).
+Follow these steps on any new machine to get the Barangay Blotter running. It's easy!
 
-### 1. Get the code
+### Prerequisites
 
+Before you start, make sure you have these installed:
+- **PHP 8.2+** - [Download](https://www.php.net/downloads)
+- **Composer** - [Download](https://getcomposer.org/download/)
+- **Node.js & npm** - [Download](https://nodejs.org/)
+- **Git** (optional, for cloning) - [Download](https://git-scm.com/)
+
+Check if they're installed:
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+php --version
+composer --version
+node --version
+npm --version
 ```
 
-Or copy the project folder to the new PC (still do the steps below).
+### Step 1: Get the Code
 
-### 2. Install PHP dependencies
+**Option A - Clone from GitHub:**
+```bash
+git clone https://github.com/franciskyle69/Barangayblotter.git
+cd Barangayblotter
+```
 
+**Option B - Copy from existing installation:**
+1. Copy the entire project folder to your new PC
+2. Open PowerShell/Terminal in that folder
+
+### Step 2: Install Dependencies
+
+**PHP packages:**
 ```bash
 composer install
 ```
 
-### 3. Environment file
+**JavaScript packages:**
+```bash
+npm install
+```
 
-Do **not** copy `.env` from another PC (it may contain machine-specific paths). Create a new one from the example:
+### Step 3: Setup Environment File
 
+Copy the example environment file:
 ```bash
 copy .env.example .env
 ```
 
-On macOS/Linux:
-
+Or on macOS/Linux:
 ```bash
 cp .env.example .env
 ```
 
-Generate the application key:
-
+Generate the app key:
 ```bash
 php artisan key:generate
 ```
 
-Edit `.env` and set at least:
+**The `.env` is already configured for SQLite (default).** No further editing needed unless you want to use MySQL.
 
-- `APP_NAME="Malaybalay City Barangay Blotter"`
-- `APP_URL=http://127.0.0.1:8000` (or your local URL)
+### Step 4: Create the Database
 
-**SQLite (default in `.env.example`):**
+**For SQLite (recommended for development):**
 
-```env
-DB_CONNECTION=sqlite
-# DB_DATABASE is optional; Laravel uses database/database.sqlite by default
+Windows PowerShell:
+```bash
+New-Item -ItemType File -Path database\database.sqlite -Force
 ```
 
-Create the empty database file once:
-
+macOS/Linux:
 ```bash
-# Windows PowerShell
-New-Item -ItemType File -Path database\database.sqlite -Force
-
-# macOS / Linux
 touch database/database.sqlite
 ```
 
-**MySQL instead:** uncomment and set `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, and set `DB_CONNECTION=mysql`.
+**For MySQL instead:**
+1. Edit `.env` and change `DB_CONNECTION=mysql`
+2. Set your database credentials:
+   ```env
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=barangay_blotter
+   DB_USERNAME=root
+   DB_PASSWORD=your_password
+   ```
+3. Create the database in MySQL first:
+   ```sql
+   CREATE DATABASE barangay_blotter;
+   ```
 
-### 4. Database: migrate and seed
+### Step 5: Migrate Database & Load Demo Data
 
-Create tables and load demo data (plans, barangays, users):
-
-```bash
-php artisan migrate
-php artisan db:seed
-```
-
-**If you want to wipe the database and start clean** (all data removed, then re-seeded):
+This creates all tables and loads sample barangays, plans, and users:
 
 ```bash
 php artisan migrate:fresh --seed
 ```
 
-### 5. Storage (incident attachments)
+This will create:
+- ✅ 5 sample barangays (Casisang, Sumpong, San Jose, Kalasungay, Caburacanan)
+- ✅ 3 subscription plans (Basic, Standard, Premium)
+- ✅ Demo login accounts (see **Demo Accounts** below)
 
+### Step 6: Setup File Storage
+
+Create a public link for file uploads:
 ```bash
 php artisan storage:link
 ```
 
-### 6. Frontend assets
+### Step 7: Build Frontend Assets
 
-The UI uses Vite + React + Inertia. Install JavaScript dependencies and build:
-
+Build the React/Vite frontend:
 ```bash
-npm install
 npm run build
 ```
 
-For development with hot reload, use a **second terminal**:
-
+For **development with live reload** (keep this running in a separate terminal):
 ```bash
 npm run dev
 ```
 
-Keep `npm run dev` running while you work; otherwise rely on `npm run build` after code changes.
+### Step 8: Start the Server
 
-### 7. Run the server
-
+In a new terminal, run:
 ```bash
 php artisan serve
 ```
 
-Open **http://127.0.0.1:8000** in your browser.
+You'll see:
+```
+   INFO  Server running on [http://127.0.0.1:8000].
+```
+
+Open **http://127.0.0.1:8000** in your browser. 🎉
 
 ---
 
-## Seeding users and demo data
+## Demo Accounts (After Setup)
 
-Seeding fills the database with **plans**, **barangays (tenants)**, and **users** so you can log in immediately.
+After running `php artisan migrate:fresh --seed`, use these accounts to log in:
 
-### Commands
+### Login Credentials
+
+| Email | Password | Role | Purpose |
+|-------|----------|------|---------|
+| `admin@malaybalay.test` | `password` | Barangay Secretary | Day-to-day barangay staff work. Available in **all demo barangays**. |
+| `city@malaybalay.test` | `password` | Super Admin | City-wide monitoring dashboard. View all barangays. |
+| `admin@admin` | `admin` | Super Admin | Alternative city admin account. Also a secretary in all barangays. |
+
+### First Login Steps
+
+1. Go to **http://127.0.0.1:8000/login**
+2. Enter email and password from the table above
+3. You'll be asked to **select a barangay**
+4. Choose one of the 5 demo barangays:
+   - Casisang
+   - Sumpong
+   - San Jose
+   - Kalasungay
+   - Caburacanan
+5. Click the barangay to enter the dashboard 🎉
+
+### What You Can Do Now
+
+- **Report Incidents**: Click "Report an Incident" to create a new incident report
+- **View Incidents**: See all incidents for your barangay with status filters
+- **Request Blotter Copies**: Request certified copies of incident reports
+- **Check Dashboard**: View statistics and recent activities
+- **Staff Functions** (if logged in as staff): Edit incidents, schedule mediations, manage patrol logs
+
+---
+
+## Advanced: Seeding Commands
+
+If you need to reset or reseed data, use these commands:
 
 | Command | What it does |
 |--------|----------------|
-| `php artisan db:seed` | Runs all seeders (see below). Safe if tables already exist and you only need to add missing seed data (may duplicate if not careful—prefer `migrate:fresh --seed` for a clean slate). |
-| `php artisan migrate:fresh --seed` | **Drops all tables**, runs migrations again, then seeds. Use for a clean install or when you want to reset everything. |
-| `php artisan db:seed --class=PlanSeeder` | Only plans (Basic, Standard, Premium). |
-| `php artisan db:seed --class=TenantSeeder` | Barangays + main Malaybalay users (requires plans). |
-| `php artisan db:seed --class=UserSeeder` | Extra super-admin user `admin@admin` (requires tenants). |
+| `php artisan migrate:fresh --seed` | **Wipes everything and starts fresh.** Use for a clean slate on new PC. |
+| `php artisan db:seed` | Adds seed data to existing database (may cause duplicates if data exists). |
+| `php artisan db:seed --class=PlanSeeder` | Only seed plans (Basic, Standard, Premium). |
+| `php artisan db:seed --class=TenantSeeder` | Only seed barangays and main users (requires plans). |
 
-**Recommended first-time setup on a new PC:**
-
+**For a new PC, always use:**
 ```bash
 php artisan migrate:fresh --seed
 ```
-
-### What gets seeded (`php artisan db:seed`)
-
-Order is defined in `database/seeders/DatabaseSeeder.php`:
-
-1. **PlanSeeder** — Basic, Standard, Premium plans (limits, features).
-2. **TenantSeeder** — Five demo barangays: Casisang, Sumpong, San Jose, Kalasungay, Caburacanan; creates `admin@malaybalay.test` and `city@malaybalay.test`.
-3. **UserSeeder** — Creates `admin@admin` (super admin) and attaches to all tenants.
-
-### Seeded login accounts
-
-| Email | Password | Notes |
-|-------|----------|--------|
-| `admin@malaybalay.test` | `password` | Barangay staff — Barangay Secretary in **all five** demo barangays. Use for day-to-day barangay dashboard after selecting a barangay. |
-| `city@malaybalay.test` | `password` | **Super admin** — Malaybalay City central monitoring (`/super/dashboard`, `/super/tenants`). |
-| `admin@admin` | `admin` | **Super admin** — Alternative city-wide admin; also attached to all barangays as secretary. |
-
-**Demo barangays:** Casisang, Sumpong, San Jose, Kalasungay, Caburacanan.
-
-After login, if the user has more than one barangay, you will be asked to **select a barangay** before the main dashboard.
-
-### Copying your real database to another PC
-
-The SQLite file `database/database.sqlite` is **not** committed to Git (see `database/.gitignore`). To copy data manually:
-
-1. Copy `database/database.sqlite` to the same path on the other PC, **or**
-2. On the new PC, run `php artisan migrate:fresh --seed` to recreate demo data only.
-
-For MySQL, export with `mysqldump` and import on the other machine.
 
 ---
 
