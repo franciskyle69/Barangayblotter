@@ -31,8 +31,8 @@ export default function BlotterRequestsIndex({ requests, role, filters = {} }) {
   return (
     <TenantLayout>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Blotter / certified copy requests</h1>
-        <Link href="/blotter-requests/create" className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Request copy</Link>
+        <h1 className="text-2xl font-bold text-slate-800">My Requests</h1>
+        <Link href="/blotter-requests/create" className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Request Copy</Link>
       </div>
 
       <form method="GET" onSubmit={handleFilter} className="mb-4 flex flex-wrap gap-2">

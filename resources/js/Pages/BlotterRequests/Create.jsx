@@ -9,7 +9,7 @@ export default function BlotterRequestsCreate({ incidents, initialIncidentId }) 
 
   return (
     <TenantLayout>
-      <h1 className="mb-6 text-2xl font-bold text-slate-800">Request certified blotter copy</h1>
+      <h1 className="mb-6 text-2xl font-bold text-slate-800">Request Certified Copy</h1>
       <form onSubmit={(e) => { e.preventDefault(); post('/blotter-requests'); }} className="max-w-md space-y-4 rounded-lg bg-white p-6 shadow">
         <div>
           <label htmlFor="incident_id" className="mb-1 block text-sm font-medium text-slate-700">Incident</label>

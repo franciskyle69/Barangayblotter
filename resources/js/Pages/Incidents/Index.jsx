@@ -24,12 +24,12 @@ export default function IncidentsIndex({ incidents, statuses, role }) {
   return (
     <TenantLayout>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Incidents / Blotter</h1>
+        <h1 className="text-2xl font-bold text-slate-800">My Reports</h1>
         <Link
           href="/incidents/create"
           className="rounded-devias bg-devias-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
         >
-          New incident
+          Report an Incident
         </Link>
       </div>
 

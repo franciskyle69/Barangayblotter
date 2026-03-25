@@ -20,7 +20,7 @@ export default function IncidentsShow({ incident, role }) {
   return (
     <TenantLayout>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Incident {blotterLabel}</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Incident Report {blotterLabel}</h1>
         {canEdit && (
           <div className="flex gap-2">
             <Link href={`/incidents/${incident.id}/edit`} className="rounded-lg bg-slate-600 px-4 py-2 text-white hover:bg-slate-700">Edit</Link>

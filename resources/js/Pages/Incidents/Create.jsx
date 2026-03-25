@@ -24,7 +24,7 @@ export default function IncidentsCreate({ statuses }) {
 
   return (
     <TenantLayout>
-      <h1 className="mb-6 text-2xl font-bold text-slate-800">Record new incident</h1>
+      <h1 className="mb-6 text-2xl font-bold text-slate-800">Report an Incident</h1>
       {errors && Object.keys(errors).length > 0 && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <ul className="list-disc pl-4">
