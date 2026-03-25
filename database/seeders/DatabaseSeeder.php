@@ -10,7 +10,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PlanSeeder::class,
-            // TenantSeeder::class, // Disabled: Create tenants manually via 'php artisan tenant:create' command
+            // TenantSeeder::class, // ⚠️ DISABLED - No automatic tenant seeding
+            // Create tenants manually via:
+            // - Web UI: /super/tenants/create
+            // - CLI: php artisan tenant:create
+            // - Or restore samples: php artisan db:seed --class=TenantSeeder
             UserSeeder::class,
         ]);
     }
