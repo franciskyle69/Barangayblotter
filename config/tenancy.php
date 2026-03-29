@@ -83,6 +83,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Standalone Tenant Database (Optional)
+    |--------------------------------------------------------------------------
+    |
+    | If you keep legacy tenant data in a single standalone database (for
+    | example a database literally named "tenant"), set it here so it is
+    | included in full JSON backup/restore snapshots.
+    |
+    */
+    'standalone_database' => env('TENANCY_STANDALONE_DATABASE', 'tenant'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Configuration
     |--------------------------------------------------------------------------
     |

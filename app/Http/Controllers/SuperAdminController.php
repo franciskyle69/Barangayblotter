@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\TenantSignupRequest;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\DatabaseBackupService;
 use App\Services\TenantDatabaseManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -117,7 +118,7 @@ class SuperAdminController extends Controller
         ]);
     }
 
-    public function storeTenant(Request $request, TenantDatabaseManager $tenantDatabases): RedirectResponse
+    public function storeTenant(Request $request, TenantDatabaseManager $tenantDatabases, DatabaseBackupService $backupService): RedirectResponse
     {
         $reservedSubdomain = config('tenancy.super_admin_subdomain', 'admin');
 
@@ -313,7 +314,53 @@ class SuperAdminController extends Controller
             tenantId: $tenant->id,
         );
 
-        return redirect()->route('super.tenants')->with('success', 'Barangay tenant created successfully.');
+        $backupFilename = null;
+
+        try {
+            $backup = $backupService->createBackup();
+            $backupFilename = $backup['filename'] ?? null;
+
+            ActivityLogService::record(
+                request: $request,
+                action: 'super.backup.auto_after_tenant_create',
+                description: "Automatically created backup after tenant {$tenant->name} was created.",
+                metadata: [
+                    'tenant_id' => $tenant->id,
+                    'tenant_name' => $tenant->name,
+                    'filename' => $backupFilename,
+                ],
+                targetType: 'backup_file',
+                targetId: $backupFilename,
+                tenantId: $tenant->id,
+            );
+        } catch (Throwable $e) {
+            ActivityLogService::record(
+                request: $request,
+                action: 'super.backup.auto_after_tenant_create_failed',
+                description: "Failed to automatically create backup after tenant {$tenant->name} was created.",
+                metadata: [
+                    'tenant_id' => $tenant->id,
+                    'tenant_name' => $tenant->name,
+                    'error' => $e->getMessage(),
+                ],
+                targetType: 'backup_file',
+                tenantId: $tenant->id,
+            );
+
+            report($e);
+
+            return redirect()->route('super.tenants')
+                ->with('success', 'Barangay tenant created successfully.')
+                ->with('warning', 'Tenant created, but automatic backup failed. Please run Backup & Restore manually.');
+        }
+
+        $successMessage = 'Barangay tenant created successfully.';
+
+        if (is_string($backupFilename) && $backupFilename !== '') {
+            $successMessage .= " Automatic backup created: {$backupFilename}.";
+        }
+
+        return redirect()->route('super.tenants')->with('success', $successMessage);
     }
 
     public function editTenant(Tenant $tenant): Response

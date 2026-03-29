@@ -13,6 +13,10 @@ class DatabaseBackupService
 {
     private const BACKUP_DIRECTORY = 'backups/database';
 
+    public function __construct(private TenantDatabaseManager $tenantDatabases)
+    {
+    }
+
     public function createBackup(): array
     {
         $payload = $this->buildSnapshot();
@@ -112,15 +116,36 @@ class DatabaseBackupService
 
         $snapshot = [
             'meta' => [
-                'version' => 1,
+                'version' => 2,
                 'generated_at' => now()->toIso8601String(),
                 'app_name' => config('app.name'),
                 'central_connection' => $centralConnection,
                 'central_driver' => $this->driverForConnection($centralConnection),
+                'tenant_backup_errors' => [],
             ],
             'central' => $this->dumpConnection($centralConnection),
+            'standalone_tenant' => null,
             'tenants' => [],
         ];
+
+        $standaloneDatabaseName = $this->standaloneTenantDatabaseName();
+        if ($standaloneDatabaseName) {
+            try {
+                $standaloneConnection = $this->configureTenantConnection('backup_standalone_tenant', $standaloneDatabaseName);
+
+                $snapshot['standalone_tenant'] = [
+                    'database_name' => $standaloneDatabaseName,
+                    'driver' => $this->driverForConnection($standaloneConnection),
+                    'data' => $this->dumpConnection($standaloneConnection),
+                ];
+            } catch (\Throwable $e) {
+                $snapshot['meta']['tenant_backup_errors'][] = [
+                    'type' => 'standalone_tenant',
+                    'database_name' => $standaloneDatabaseName,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
 
         $tenants = Tenant::query()
             ->select(['id', 'name', 'database_name'])
@@ -128,19 +153,29 @@ class DatabaseBackupService
             ->get();
 
         foreach ($tenants as $tenant) {
-            if (!$tenant->database_name) {
+            $databaseName = $this->resolveTenantDatabaseName($tenant);
+            if (!$databaseName) {
                 continue;
             }
 
-            $tenantConnection = $this->configureTenantConnection('backup_tenant', $tenant->database_name);
+            try {
+                $tenantConnection = $this->configureTenantConnection('backup_tenant', $databaseName);
 
-            $snapshot['tenants'][] = [
-                'id' => $tenant->id,
-                'name' => $tenant->name,
-                'database_name' => $tenant->database_name,
-                'driver' => $this->driverForConnection($tenantConnection),
-                'data' => $this->dumpConnection($tenantConnection),
-            ];
+                $snapshot['tenants'][] = [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name,
+                    'database_name' => $databaseName,
+                    'driver' => $this->driverForConnection($tenantConnection),
+                    'data' => $this->dumpConnection($tenantConnection),
+                ];
+            } catch (\Throwable $e) {
+                $snapshot['meta']['tenant_backup_errors'][] = [
+                    'tenant_id' => $tenant->id,
+                    'tenant_name' => $tenant->name,
+                    'database_name' => $databaseName,
+                    'error' => $e->getMessage(),
+                ];
+            }
         }
 
         return $snapshot;
@@ -191,6 +226,14 @@ class DatabaseBackupService
             throw $e;
         }
 
+        $standaloneTenantTables = data_get($payload, 'standalone_tenant.data.tables');
+        $standaloneTenantDatabaseName = data_get($payload, 'standalone_tenant.database_name');
+
+        if (is_array($standaloneTenantTables) && is_string($standaloneTenantDatabaseName) && trim($standaloneTenantDatabaseName) !== '') {
+            $standaloneConnection = $this->configureTenantConnection('backup_standalone_tenant_restore', trim($standaloneTenantDatabaseName));
+            $this->restoreConnectionData($standaloneConnection, $standaloneTenantTables);
+        }
+
         $tenantBackups = data_get($payload, 'tenants', []);
         if (!is_array($tenantBackups)) {
             return;
@@ -202,15 +245,178 @@ class DatabaseBackupService
             }
 
             $tenantTables = data_get($tenantBackup, 'data.tables');
-            $databaseName = data_get($tenantBackup, 'database_name');
+            $tenantId = data_get($tenantBackup, 'id');
+            $tenant = is_numeric($tenantId) ? Tenant::query()->find((int) $tenantId) : null;
+            $databaseName = $this->resolveTenantDatabaseNameForRestore($tenantBackup, $tenant);
 
             if (!is_array($tenantTables) || !is_string($databaseName) || trim($databaseName) === '') {
                 continue;
             }
 
+            $this->prepareTenantDatabaseForRestore($tenant, $databaseName);
+
             $tenantConnection = $this->configureTenantConnection('backup_tenant_restore', $databaseName);
             $this->restoreConnectionData($tenantConnection, $tenantTables);
         }
+    }
+
+    private function prepareTenantDatabaseForRestore(?Tenant $tenant, string $databaseName): void
+    {
+        if (!$tenant) {
+            return;
+        }
+
+        if ($tenant->database_name !== $databaseName) {
+            $tenant->database_name = $databaseName;
+            $tenant->save();
+        }
+
+        try {
+            $this->tenantDatabases->provisionTenantDatabase($tenant);
+        } catch (\Throwable $e) {
+            // Provisioning is a best effort: restore may still succeed if schema already exists.
+            report($e);
+        }
+    }
+
+    private function resolveTenantDatabaseName(object $tenant): ?string
+    {
+        $configured = is_string($tenant->database_name ?? null) ? trim($tenant->database_name) : '';
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $tenantId = isset($tenant->id) ? (int) $tenant->id : 0;
+        if ($tenantId <= 0) {
+            return null;
+        }
+
+        return $this->defaultTenantDatabaseName($tenantId);
+    }
+
+    private function resolveTenantDatabaseNameForRestore(array $tenantBackup, ?Tenant $tenant): ?string
+    {
+        $fromBackup = data_get($tenantBackup, 'database_name');
+        if (is_string($fromBackup) && trim($fromBackup) !== '') {
+            return trim($fromBackup);
+        }
+
+        if ($tenant) {
+            $fromTenant = is_string($tenant->database_name) ? trim($tenant->database_name) : '';
+            if ($fromTenant !== '') {
+                return $fromTenant;
+            }
+        }
+
+        $tenantId = data_get($tenantBackup, 'id');
+        if (is_numeric($tenantId)) {
+            return $this->defaultTenantDatabaseName((int) $tenantId);
+        }
+
+        return null;
+    }
+
+    private function defaultTenantDatabaseName(int $tenantId): string
+    {
+        return 'tenant_' . $tenantId;
+    }
+
+    private function standaloneTenantDatabaseName(): ?string
+    {
+        $configured = config('tenancy.standalone_database');
+
+        $candidates = [];
+        if (is_string($configured) && trim($configured) !== '') {
+            $candidates[] = trim($configured);
+        }
+
+        // Legacy/common names to support zero-config setups.
+        $candidates[] = 'tenant';
+        $candidates[] = 'tenants';
+
+        foreach (array_unique($candidates) as $candidate) {
+            if ($this->databaseExists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $this->detectStandaloneTenantDatabaseName();
+    }
+
+    private function databaseExists(string $databaseName): bool
+    {
+        $databaseName = trim($databaseName);
+        if ($databaseName === '') {
+            return false;
+        }
+
+        $centralConnection = config('tenancy.central_connection', 'central');
+        $driver = $this->driverForConnection($centralConnection);
+
+        try {
+            return match ($driver) {
+                'mysql', 'mariadb' => (bool) DB::connection($centralConnection)
+                    ->table('information_schema.schemata')
+                    ->where('schema_name', $databaseName)
+                    ->exists(),
+                'pgsql' => (bool) DB::connection($centralConnection)
+                    ->table('pg_database')
+                    ->where('datname', $databaseName)
+                    ->exists(),
+                'sqlite' => File::exists(database_path($databaseName))
+                || File::exists(database_path($databaseName . '.sqlite')),
+                default => false,
+            };
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function detectStandaloneTenantDatabaseName(): ?string
+    {
+        $centralConnection = config('tenancy.central_connection', 'central');
+        $driver = $this->driverForConnection($centralConnection);
+
+        if (!in_array($driver, ['mysql', 'mariadb'], true)) {
+            return null;
+        }
+
+        $centralDatabase = (string) config("database.connections.{$centralConnection}.database", '');
+        $reservedSchemas = array_filter([
+            strtolower($centralDatabase),
+            'information_schema',
+            'mysql',
+            'performance_schema',
+            'sys',
+            'phpmyadmin',
+        ]);
+
+        try {
+            $rows = DB::connection($centralConnection)->select(
+                "SELECT table_schema AS schema_name, COUNT(*) AS match_count
+                 FROM information_schema.tables
+                 WHERE table_name REGEXP '^tenant_[0-9]+$'
+                 GROUP BY table_schema
+                 ORDER BY match_count DESC"
+            );
+
+            foreach ($rows as $row) {
+                $schemaName = (string) ($row->schema_name ?? '');
+                if ($schemaName === '') {
+                    continue;
+                }
+
+                if (in_array(strtolower($schemaName), $reservedSchemas, true)) {
+                    continue;
+                }
+
+                return $schemaName;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return null;
     }
 
     private function restoreConnectionData(string $connection, array $tableData): void
@@ -402,6 +608,9 @@ class DatabaseBackupService
             'central_driver' => null,
             'central_table_count' => null,
             'central_row_count' => null,
+            'standalone_tenant_database' => null,
+            'standalone_tenant_table_count' => null,
+            'standalone_tenant_row_count' => null,
             'tenant_count' => null,
             'tenant_table_count' => null,
             'tenant_row_count' => null,
@@ -428,6 +637,19 @@ class DatabaseBackupService
             $centralTableCount = (int) data_get($payload, 'central.table_count', count($centralTables));
             $centralRowCount = $this->sumTableRows($centralTables);
 
+            $standaloneTenantTables = data_get($payload, 'standalone_tenant.data.tables', []);
+            if (!is_array($standaloneTenantTables)) {
+                $standaloneTenantTables = [];
+            }
+            $standaloneTenantDatabase = data_get($payload, 'standalone_tenant.database_name');
+            $standaloneTenantTableCount = null;
+            $standaloneTenantRowCount = null;
+
+            if (is_string($standaloneTenantDatabase) && trim($standaloneTenantDatabase) !== '') {
+                $standaloneTenantTableCount = (int) data_get($payload, 'standalone_tenant.data.table_count', count($standaloneTenantTables));
+                $standaloneTenantRowCount = $this->sumTableRows($standaloneTenantTables);
+            }
+
             $tenantBackups = data_get($payload, 'tenants', []);
             if (!is_array($tenantBackups)) {
                 $tenantBackups = [];
@@ -453,6 +675,12 @@ class DatabaseBackupService
                 $tenantRowCount += $this->sumTableRows($tenantTables);
             }
 
+            $summaryLabel = 'Central + ' . $tenantCount . ' tenant database' . ($tenantCount === 1 ? '' : 's');
+
+            if (is_string($standaloneTenantDatabase) && trim($standaloneTenantDatabase) !== '') {
+                $summaryLabel .= ' + standalone DB (' . trim($standaloneTenantDatabase) . ')';
+            }
+
             return [
                 'backup_version' => data_get($payload, 'meta.version'),
                 'app_name' => data_get($payload, 'meta.app_name', config('app.name')),
@@ -461,10 +689,13 @@ class DatabaseBackupService
                 'central_driver' => data_get($payload, 'meta.central_driver', data_get($payload, 'central.driver')),
                 'central_table_count' => $centralTableCount,
                 'central_row_count' => $centralRowCount,
+                'standalone_tenant_database' => is_string($standaloneTenantDatabase) ? trim($standaloneTenantDatabase) : null,
+                'standalone_tenant_table_count' => $standaloneTenantTableCount,
+                'standalone_tenant_row_count' => $standaloneTenantRowCount,
                 'tenant_count' => $tenantCount,
                 'tenant_table_count' => $tenantTableCount,
                 'tenant_row_count' => $tenantRowCount,
-                'summary_label' => 'Central + ' . $tenantCount . ' tenant database' . ($tenantCount === 1 ? '' : 's'),
+                'summary_label' => $summaryLabel,
                 'parse_error' => false,
             ];
         } catch (\Throwable) {

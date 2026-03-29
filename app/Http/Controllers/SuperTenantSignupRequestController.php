@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\TenantSignupRequest;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\DatabaseBackupService;
 use App\Services\TenantDatabaseManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class SuperTenantSignupRequestController extends Controller
         ]);
     }
 
-    public function approve(Request $request, TenantSignupRequest $signupRequest, TenantDatabaseManager $tenantDatabases): RedirectResponse
+    public function approve(Request $request, TenantSignupRequest $signupRequest, TenantDatabaseManager $tenantDatabases, DatabaseBackupService $backupService): RedirectResponse
     {
         if ($signupRequest->status !== TenantSignupRequest::STATUS_PENDING) {
             return back()->with('warning', 'This signup request has already been processed.');
@@ -104,6 +105,46 @@ class SuperTenantSignupRequestController extends Controller
                 targetId: $signupRequest->id,
                 tenantId: $tenant->id,
             );
+
+            try {
+                $backup = $backupService->createBackup();
+                $backupFilename = $backup['filename'] ?? null;
+
+                ActivityLogService::record(
+                    request: $request,
+                    action: 'super.backup.auto_after_tenant_signup_approve',
+                    description: "Automatically created backup after approving signup for {$signupRequest->tenant_name}.",
+                    metadata: [
+                        'signup_request_id' => $signupRequest->id,
+                        'tenant_id' => $tenant->id,
+                        'tenant_name' => $tenant->name,
+                        'filename' => $backupFilename,
+                    ],
+                    targetType: 'backup_file',
+                    targetId: $backupFilename,
+                    tenantId: $tenant->id,
+                );
+            } catch (Throwable $e) {
+                ActivityLogService::record(
+                    request: $request,
+                    action: 'super.backup.auto_after_tenant_signup_approve_failed',
+                    description: "Failed to automatically create backup after approving signup for {$signupRequest->tenant_name}.",
+                    metadata: [
+                        'signup_request_id' => $signupRequest->id,
+                        'tenant_id' => $tenant->id,
+                        'tenant_name' => $tenant->name,
+                        'error' => $e->getMessage(),
+                    ],
+                    targetType: 'backup_file',
+                    tenantId: $tenant->id,
+                );
+
+                report($e);
+
+                return back()
+                    ->with('success', 'Signup request approved and tenant provisioned successfully.')
+                    ->with('warning', 'Tenant was created, but automatic backup failed. Please run Backup & Restore manually.');
+            }
         } catch (Throwable $e) {
             ActivityLogService::record(
                 request: $request,
@@ -137,7 +178,7 @@ class SuperTenantSignupRequestController extends Controller
             return back()->with('error', 'Failed to approve signup request: ' . $e->getMessage());
         }
 
-        return back()->with('success', 'Signup request approved and tenant provisioned successfully.');
+        return back()->with('success', 'Signup request approved, tenant provisioned, and automatic backup generated successfully.');
     }
 
     public function reject(Request $request, TenantSignupRequest $signupRequest): RedirectResponse
