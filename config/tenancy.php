@@ -9,6 +9,17 @@ use Stancl\Tenancy\UUIDGenerator;
 return [
     /*
     |--------------------------------------------------------------------------
+    | Central Database Connection
+    |--------------------------------------------------------------------------
+    |
+    | The master database connection that stores tenant metadata, users,
+    | plans, and cross-tenant membership tables.
+    |
+    */
+    'central_connection' => env('TENANCY_CENTRAL_CONNECTION', 'central'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Tenancy Storage Driver
     |--------------------------------------------------------------------------
     |

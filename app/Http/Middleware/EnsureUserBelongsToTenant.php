@@ -10,11 +10,15 @@ class EnsureUserBelongsToTenant
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $tenant = app()->bound('current_tenant') ? app('current_tenant') : null;
+
         if ($request->user()?->is_super_admin) {
+            if (!$tenant) {
+                return redirect()->route('super.dashboard');
+            }
+
             return $next($request);
         }
-
-        $tenant = app()->bound('current_tenant') ? app('current_tenant') : null;
 
         if (!$tenant) {
             return redirect()->route('tenant.select')

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Incident;
 use App\Models\Mediation;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,12 +18,14 @@ class MediationController extends Controller
     {
         $tenant = app('current_tenant');
         $role = $request->user()?->roleIn($tenant);
-        if (!in_array($role, [
-            User::ROLE_PUROK_SECRETARY,
-            User::ROLE_PUROK_LEADER,
-            User::ROLE_COMMUNITY_WATCH,
-            User::ROLE_MEDIATOR,
-        ], true)) {
+        if (
+            !in_array($role, [
+                User::ROLE_PUROK_SECRETARY,
+                User::ROLE_PUROK_LEADER,
+                User::ROLE_COMMUNITY_WATCH,
+                User::ROLE_MEDIATOR,
+            ], true)
+        ) {
             abort(403, 'Only barangay admin/staff can access mediations.');
         }
     }
@@ -73,18 +76,36 @@ class MediationController extends Controller
         $incident = Incident::findOrFail($validated['incident_id']);
 
         // tenant_id is auto-set by BelongsToTenant trait
-        Mediation::create([
+        $mediation = Mediation::create([
             'incident_id' => $incident->id,
             'mediator_user_id' => $validated['mediator_user_id'],
             'scheduled_at' => $validated['scheduled_at'],
         ]);
         $incident->update(['status' => Incident::STATUS_UNDER_MEDIATION]);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.mediation.create',
+            description: 'Scheduled a mediation for an incident.',
+            metadata: [
+                'incident_id' => $incident->id,
+                'mediator_user_id' => $validated['mediator_user_id'],
+                'scheduled_at' => $validated['scheduled_at'],
+            ],
+            targetType: 'mediation',
+            targetId: $mediation->id,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('incidents.show', $incident)->with('success', 'Mediation scheduled.');
     }
 
     public function update(Request $request, Mediation $mediation): RedirectResponse
     {
         $this->assertAdminOrStaff($request);
+        $tenant = app('current_tenant');
+        $beforeStatus = $mediation->status;
+
         // Global scope on Mediation ensures it belongs to current tenant
         $validated = $request->validate([
             'status' => 'required|in:scheduled,completed,cancelled,no_show',
@@ -96,6 +117,21 @@ class MediationController extends Controller
             $mediation->update(['completed_at' => now()]);
             $mediation->incident->update(['status' => Incident::STATUS_SETTLED]);
         }
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.mediation.update',
+            description: 'Updated mediation status/details.',
+            metadata: [
+                'before_status' => $beforeStatus,
+                'after_status' => $mediation->status,
+                'incident_id' => $mediation->incident_id,
+            ],
+            targetType: 'mediation',
+            targetId: $mediation->id,
+            tenantId: $tenant->id,
+        );
+
         return back()->with('success', 'Mediation updated.');
     }
 }

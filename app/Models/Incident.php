@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToTenant;
+use App\Services\CentralIncidentSyncService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -65,6 +66,30 @@ class Incident extends Model
                     $seq = $tenant->incidents()->withoutGlobalScope('tenant')->where('tenant_id', $tenant->id)->whereYear('created_at', now()->year)->count() + 1;
                     $incident->blotter_number = sprintf('%s-%s-%04d', $prefix, $year, $seq);
                 }
+            }
+        });
+
+        static::created(function (Incident $incident) {
+            try {
+                app(CentralIncidentSyncService::class)->sync($incident->loadMissing(['tenant', 'reportedBy']));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+
+        static::updated(function (Incident $incident) {
+            try {
+                app(CentralIncidentSyncService::class)->sync($incident->loadMissing(['tenant', 'reportedBy']));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+
+        static::deleted(function (Incident $incident) {
+            try {
+                app(CentralIncidentSyncService::class)->delete($incident);
+            } catch (\Throwable $e) {
+                report($e);
             }
         });
     }

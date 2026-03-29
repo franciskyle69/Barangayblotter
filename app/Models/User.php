@@ -12,6 +12,8 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    protected $connection = 'central';
+
     public const ROLE_PUROK_SECRETARY = 'purok_secretary';
     public const ROLE_PUROK_LEADER = 'purok_leader';
     public const ROLE_COMMUNITY_WATCH = 'community_watch';

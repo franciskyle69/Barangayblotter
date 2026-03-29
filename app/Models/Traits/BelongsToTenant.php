@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 trait BelongsToTenant
 {
+    use UsesTenantConnection;
+
     public static function bootBelongsToTenant(): void
     {
         // Global scope: auto-filter by current tenant

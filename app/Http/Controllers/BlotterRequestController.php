@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BlotterRequest;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -75,6 +76,8 @@ class BlotterRequestController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $tenant = app('current_tenant');
+
         $validated = $request->validate([
             'incident_id' => 'required|exists:incidents,id',
             'purpose' => 'nullable|string|max:255',
@@ -83,54 +86,94 @@ class BlotterRequestController extends Controller
         $incident = Incident::findOrFail($validated['incident_id']);
 
         // tenant_id is auto-set by BelongsToTenant trait
-        BlotterRequest::create([
+        $blotterRequest = BlotterRequest::create([
             'incident_id' => $incident->id,
             'requested_by_user_id' => $request->user()->id,
             'purpose' => $validated['purpose'] ?? null,
             'status' => BlotterRequest::STATUS_PENDING,
         ]);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.blotter_request.create',
+            description: 'Submitted a blotter copy request.',
+            metadata: [
+                'incident_id' => $incident->id,
+                'status' => $blotterRequest->status,
+            ],
+            targetType: 'blotter_request',
+            targetId: $blotterRequest->id,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('blotter-requests.index')->with('success', 'Blotter copy request submitted.');
     }
 
-    public function approve(BlotterRequest $blotterRequest): RedirectResponse
+    public function approve(Request $request, BlotterRequest $blotterRequest): RedirectResponse
     {
         $tenant = app('current_tenant');
-        $role = request()->user()?->roleIn($tenant);
+        $role = $request->user()?->roleIn($tenant);
         if (!$this->canReviewRequests($role)) {
             abort(403, 'Only barangay admin/staff can approve requests.');
         }
 
-        $validated = request()->validate([
+        $validated = $request->validate([
             'remarks' => 'nullable|string|max:1000',
         ]);
 
         // Global scope ensures only tenant's requests are accessible
         $blotterRequest->update([
             'status' => BlotterRequest::STATUS_APPROVED,
-            'admin_user_id' => request()->user()->id,
+            'admin_user_id' => $request->user()->id,
             'remarks' => $validated['remarks'] ?? null,
         ]);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.blotter_request.approve',
+            description: 'Approved a blotter request.',
+            metadata: [
+                'incident_id' => $blotterRequest->incident_id,
+            ],
+            targetType: 'blotter_request',
+            targetId: $blotterRequest->id,
+            tenantId: $tenant->id,
+        );
+
         return back()->with('success', 'Request approved.');
     }
 
-    public function reject(BlotterRequest $blotterRequest): RedirectResponse
+    public function reject(Request $request, BlotterRequest $blotterRequest): RedirectResponse
     {
         $tenant = app('current_tenant');
-        $role = request()->user()?->roleIn($tenant);
+        $role = $request->user()?->roleIn($tenant);
         if (!$this->canReviewRequests($role)) {
             abort(403, 'Only barangay admin/staff can reject requests.');
         }
 
-        $validated = request()->validate([
+        $validated = $request->validate([
             'remarks' => 'nullable|string|max:1000',
         ]);
 
         // Global scope ensures only tenant's requests are accessible
         $blotterRequest->update([
             'status' => BlotterRequest::STATUS_REJECTED,
-            'admin_user_id' => request()->user()->id,
+            'admin_user_id' => $request->user()->id,
             'remarks' => $validated['remarks'] ?? null,
         ]);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.blotter_request.reject',
+            description: 'Rejected a blotter request.',
+            metadata: [
+                'incident_id' => $blotterRequest->incident_id,
+            ],
+            targetType: 'blotter_request',
+            targetId: $blotterRequest->id,
+            tenantId: $tenant->id,
+        );
+
         return back()->with('success', 'Request rejected.');
     }
 }

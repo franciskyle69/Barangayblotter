@@ -242,6 +242,7 @@ SQLite stores everything in a single file: `database/database.sqlite`
 **Step 1: Copy the database file**
 
 On your **original PC**, locate the file at:
+
 ```
 database/database.sqlite
 ```
@@ -253,20 +254,21 @@ Copy this file to a USB drive or cloud storage (Google Drive, Dropbox, etc.).
 On the **new PC**, after you've done Steps 1-6 of the setup guide:
 
 1. Delete the empty database file:
-   ```bash
-   # Windows
-   Remove-Item database\database.sqlite
-   
-   # macOS/Linux
-   rm database/database.sqlite
-   ```
+
+    ```bash
+    # Windows
+    Remove-Item database\database.sqlite
+
+    # macOS/Linux
+    rm database/database.sqlite
+    ```
 
 2. Paste the copied `database.sqlite` file into the `database/` folder
 
 3. Done! Your data is now on the new PC. Start the server:
-   ```bash
-   php artisan serve
-   ```
+    ```bash
+    php artisan serve
+    ```
 
 ### MySQL/MariaDB (More Complex)
 
@@ -313,24 +315,28 @@ If you are using XAMPP, you can import the SQL file using either phpMyAdmin (web
 
 1. Open the XAMPP Control Panel and click **Shell** (or open Command Prompt).
 2. Run the following command (replace `barangay_blotter` with your database name if different):
-     ```bash
-     mysql -u root -p barangay_blotter < path\to\database_backup.sql
-     ```
-     - If your MySQL has no password, omit `-p`.
-     - If you get an error about the database not existing, create it first in phpMyAdmin or with:
-         ```bash
-         mysql -u root -p -e "CREATE DATABASE barangay_blotter;"
-         ```
+
+    ```bash
+    mysql -u root -p barangay_blotter < path\to\database_backup.sql
+    ```
+
+    - If your MySQL has no password, omit `-p`.
+    - If you get an error about the database not existing, create it first in phpMyAdmin or with:
+        ```bash
+        mysql -u root -p -e "CREATE DATABASE barangay_blotter;"
+        ```
 
 3. After import, check phpMyAdmin to verify your tables and data.
 
 **Troubleshooting:**
+
 - If you see a `max_allowed_packet` error, increase the value in `my.ini` (XAMPP > MySQL > Config > my.ini) and restart MySQL.
 - If you get a collation error, make sure the database uses `utf8mb4_unicode_ci` collation.
 
 **Step 3: Verify the connection**
 
 Make sure your `.env` file on the new PC has the correct MySQL credentials:
+
 ```env
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -341,6 +347,7 @@ DB_PASSWORD=your_password
 ```
 
 Then start the server:
+
 ```bash
 php artisan serve
 ```
@@ -348,6 +355,7 @@ php artisan serve
 ### Which Database Type Am I Using?
 
 Check your `.env` file:
+
 - If it says `DB_CONNECTION=sqlite` → You're using SQLite (just copy the `.sqlite` file)
 - If it says `DB_CONNECTION=mysql` → You're using MySQL (use mysqldump export/import)
 

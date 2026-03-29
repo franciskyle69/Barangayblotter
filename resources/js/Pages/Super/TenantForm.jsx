@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Link, router } from "@inertiajs/react";
 import CentralLayout from "../Layouts/CentralLayout";
+import Swal from "sweetalert2";
 
-export default function TenantForm({ tenant, plans }) {
+export default function TenantForm({
+    tenant,
+    plans,
+    signupRequests = [],
+    initialSignupRequestId = "",
+}) {
     const isEditing = !!tenant;
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState("");
     const [deletingTenant, setDeletingTenant] = useState(false);
+
+    const pendingSignupRequests = Array.isArray(signupRequests)
+        ? signupRequests
+        : [];
 
     const { data, setData, post, put, processing, errors } = useForm({
         name: tenant?.name ?? "",
@@ -16,9 +26,105 @@ export default function TenantForm({ tenant, plans }) {
         barangay: tenant?.barangay ?? "",
         address: tenant?.address ?? "",
         contact_phone: tenant?.contact_phone ?? "",
+        requested_admin_name: "",
+        requested_admin_email: "",
+        requested_admin_phone: "",
+        requested_admin_role: "purok_secretary",
+        requested_admin_password: "",
+        requested_admin_password_confirmation: "",
         plan_id: tenant?.plan_id ?? plans?.[0]?.id ?? "",
         is_active: tenant?.is_active ?? true,
+        signup_request_id: initialSignupRequestId
+            ? String(initialSignupRequestId)
+            : "",
+        use_requested_admin_account: true,
     });
+
+    const selectedSignupRequest = !isEditing
+        ? pendingSignupRequests.find(
+              (req) => String(req.id) === String(data.signup_request_id),
+          )
+        : null;
+
+    const handleSignupRequestSelect = (requestId) => {
+        if (!requestId) {
+            setData((prev) => ({
+                ...prev,
+                signup_request_id: "",
+            }));
+            return;
+        }
+
+        const request = pendingSignupRequests.find(
+            (req) => String(req.id) === String(requestId),
+        );
+
+        if (!request) {
+            setData("signup_request_id", "");
+            return;
+        }
+
+        setData((prev) => ({
+            ...prev,
+            signup_request_id: String(request.id),
+            name: request.tenant_name ?? prev.name,
+            slug: request.slug ?? prev.slug,
+            subdomain: request.subdomain ?? "",
+            custom_domain: request.custom_domain ?? "",
+            barangay: request.barangay ?? "",
+            address: request.address ?? "",
+            contact_phone: request.contact_phone ?? "",
+            requested_admin_name:
+                request.requested_admin_name ?? prev.requested_admin_name,
+            requested_admin_email:
+                request.requested_admin_email ?? prev.requested_admin_email,
+            requested_admin_phone:
+                request.requested_admin_phone ?? prev.requested_admin_phone,
+            requested_admin_role:
+                request.requested_admin_role ?? prev.requested_admin_role,
+            requested_admin_password: "",
+            requested_admin_password_confirmation: "",
+            plan_id: request.requested_plan_id ?? prev.plan_id,
+            use_requested_admin_account: true,
+        }));
+    };
+
+    useEffect(() => {
+        if (!isEditing && data.signup_request_id) {
+            const request = pendingSignupRequests.find(
+                (req) => String(req.id) === String(data.signup_request_id),
+            );
+
+            if (!request) {
+                return;
+            }
+
+            setData((prev) => ({
+                ...prev,
+                name: request.tenant_name ?? prev.name,
+                slug: request.slug ?? prev.slug,
+                subdomain: request.subdomain ?? prev.subdomain,
+                custom_domain: request.custom_domain ?? prev.custom_domain,
+                barangay: request.barangay ?? prev.barangay,
+                address: request.address ?? prev.address,
+                contact_phone: request.contact_phone ?? prev.contact_phone,
+                requested_admin_name:
+                    request.requested_admin_name ?? prev.requested_admin_name,
+                requested_admin_email:
+                    request.requested_admin_email ?? prev.requested_admin_email,
+                requested_admin_phone:
+                    request.requested_admin_phone ?? prev.requested_admin_phone,
+                requested_admin_role:
+                    request.requested_admin_role ?? prev.requested_admin_role,
+                requested_admin_password: "",
+                requested_admin_password_confirmation: "",
+                plan_id: request.requested_plan_id ?? prev.plan_id,
+                use_requested_admin_account: true,
+            }));
+        }
+        // Initial hydration for URL-selected signup request.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -30,16 +136,47 @@ export default function TenantForm({ tenant, plans }) {
     };
 
     const handleDeleteTenant = () => {
-        if (deleteConfirmation !== tenant.name) {
-            alert("Barangay name does not match. Please try again.");
+        const normalizedInput = deleteConfirmation.trim();
+        const normalizedTenantName = (tenant?.name ?? "").trim();
+
+        if (normalizedInput !== normalizedTenantName) {
+            Swal.fire({
+                title: "Name mismatch",
+                text: "Barangay name does not match. Please try again.",
+                icon: "error",
+                confirmButtonText: "OK",
+            });
             return;
         }
 
         setDeletingTenant(true);
         router.delete(`/super/tenants/${tenant.id}`, {
+            data: {
+                confirmation: normalizedInput,
+            },
             onSuccess: () => {
                 setShowDeleteModal(false);
                 setDeleteConfirmation("");
+            },
+            onError: (errs) => {
+                const firstError = Object.values(errs || {})[0];
+                if (firstError) {
+                    Swal.fire({
+                        title: "Delete failed",
+                        text: Array.isArray(firstError)
+                            ? firstError[0]
+                            : firstError,
+                        icon: "error",
+                        confirmButtonText: "OK",
+                    });
+                } else {
+                    Swal.fire({
+                        title: "Delete failed",
+                        text: "Unable to delete barangay. Please try again.",
+                        icon: "error",
+                        confirmButtonText: "OK",
+                    });
+                }
             },
             onFinish: () => {
                 setDeletingTenant(false);
@@ -80,6 +217,77 @@ export default function TenantForm({ tenant, plans }) {
                 onSubmit={handleSubmit}
                 className="space-y-6 rounded-lg bg-white p-6 shadow"
             >
+                {!isEditing && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                        <h2 className="mb-2 text-base font-semibold text-emerald-900">
+                            Copy From Tenant Signup Request
+                        </h2>
+                        <p className="mb-3 text-sm text-emerald-800">
+                            Select a pending request to auto-fill barangay
+                            details and optionally assign the requested tenant
+                            admin account.
+                        </p>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label className={labelClass}>
+                                    Pending Request
+                                </label>
+                                <select
+                                    value={data.signup_request_id}
+                                    onChange={(e) =>
+                                        handleSignupRequestSelect(
+                                            e.target.value,
+                                        )
+                                    }
+                                    className={inputClass}
+                                    disabled={pendingSignupRequests.length === 0}
+                                >
+                                    <option value="">
+                                        {pendingSignupRequests.length > 0
+                                            ? "Select pending request (optional)"
+                                            : "No pending requests available"}
+                                    </option>
+                                    {pendingSignupRequests.map((req) => (
+                                        <option key={req.id} value={req.id}>
+                                            {req.tenant_name} ({req.slug}) -{" "}
+                                            {req.requested_admin_email}
+                                        </option>
+                                    ))}
+                                </select>
+                                {errors.signup_request_id && (
+                                    <p className={errorClass}>
+                                        {errors.signup_request_id}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {selectedSignupRequest && (
+                            <div className="mt-3 rounded border border-emerald-200 bg-white p-3 text-sm text-slate-700">
+                                <p>
+                                    <span className="font-semibold">
+                                        Requested Admin:
+                                    </span>{" "}
+                                    {selectedSignupRequest.requested_admin_name}{" "}
+                                    (
+                                    {
+                                        selectedSignupRequest.requested_admin_email
+                                    }
+                                    )
+                                </p>
+                                <p>
+                                    <span className="font-semibold">
+                                        Requested Role:
+                                    </span>{" "}
+                                    {selectedSignupRequest.requested_admin_role ||
+                                        "purok_secretary"}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Basic Info */}
                 <div className="border-b border-slate-200 pb-4">
                     <h2 className="mb-4 text-lg font-semibold text-slate-700">
@@ -247,6 +455,162 @@ export default function TenantForm({ tenant, plans }) {
                     </div>
                 </div>
 
+                {!isEditing && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <h2 className="text-sm font-semibold text-slate-800">
+                                Requested Tenant Admin Account
+                            </h2>
+                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                <input
+                                    type="checkbox"
+                                    checked={data.use_requested_admin_account}
+                                    onChange={(e) =>
+                                        setData(
+                                            "use_requested_admin_account",
+                                            e.target.checked,
+                                        )
+                                    }
+                                    className="h-4 w-4 rounded border-slate-300"
+                                />
+                                Assign tenant admin account now
+                            </label>
+                        </div>
+
+                        <p className="mb-3 text-xs text-slate-600">
+                            This follows the same fields as tenant signup requests. If the admin email already exists, that user will be linked to this barangay.
+                        </p>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label className={labelClass}>Admin Full Name *</label>
+                                <input
+                                    className={inputClass}
+                                    value={data.requested_admin_name}
+                                    onChange={(e) =>
+                                        setData(
+                                            "requested_admin_name",
+                                            e.target.value,
+                                        )
+                                    }
+                                    required={data.use_requested_admin_account}
+                                    disabled={!data.use_requested_admin_account}
+                                />
+                                {errors.requested_admin_name && (
+                                    <p className={errorClass}>
+                                        {errors.requested_admin_name}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className={labelClass}>Admin Email *</label>
+                                <input
+                                    type="email"
+                                    className={inputClass}
+                                    value={data.requested_admin_email}
+                                    onChange={(e) =>
+                                        setData(
+                                            "requested_admin_email",
+                                            e.target.value,
+                                        )
+                                    }
+                                    required={data.use_requested_admin_account}
+                                    disabled={!data.use_requested_admin_account}
+                                />
+                                {errors.requested_admin_email && (
+                                    <p className={errorClass}>
+                                        {errors.requested_admin_email}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className={labelClass}>Admin Phone</label>
+                                <input
+                                    className={inputClass}
+                                    value={data.requested_admin_phone}
+                                    onChange={(e) =>
+                                        setData(
+                                            "requested_admin_phone",
+                                            e.target.value,
+                                        )
+                                    }
+                                    disabled={!data.use_requested_admin_account}
+                                />
+                                {errors.requested_admin_phone && (
+                                    <p className={errorClass}>
+                                        {errors.requested_admin_phone}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className={labelClass}>Admin Role *</label>
+                                <select
+                                    className={inputClass}
+                                    value={data.requested_admin_role}
+                                    onChange={(e) =>
+                                        setData(
+                                            "requested_admin_role",
+                                            e.target.value,
+                                        )
+                                    }
+                                    disabled={!data.use_requested_admin_account}
+                                >
+                                    <option value="purok_secretary">
+                                        Barangay Secretary
+                                    </option>
+                                    <option value="purok_leader">
+                                        Barangay Captain
+                                    </option>
+                                </select>
+                                {errors.requested_admin_role && (
+                                    <p className={errorClass}>
+                                        {errors.requested_admin_role}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className={labelClass}>Admin Password *</label>
+                                <input
+                                    type="password"
+                                    className={inputClass}
+                                    value={data.requested_admin_password}
+                                    onChange={(e) =>
+                                        setData(
+                                            "requested_admin_password",
+                                            e.target.value,
+                                        )
+                                    }
+                                    disabled={!data.use_requested_admin_account}
+                                />
+                                {errors.requested_admin_password && (
+                                    <p className={errorClass}>
+                                        {errors.requested_admin_password}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className={labelClass}>
+                                    Confirm Admin Password *
+                                </label>
+                                <input
+                                    type="password"
+                                    className={inputClass}
+                                    value={
+                                        data.requested_admin_password_confirmation
+                                    }
+                                    onChange={(e) =>
+                                        setData(
+                                            "requested_admin_password_confirmation",
+                                            e.target.value,
+                                        )
+                                    }
+                                    disabled={!data.use_requested_admin_account}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Status */}
                 <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -380,7 +744,8 @@ export default function TenantForm({ tenant, plans }) {
                                 onClick={handleDeleteTenant}
                                 disabled={
                                     deletingTenant ||
-                                    deleteConfirmation !== tenant.name
+                                    deleteConfirmation.trim() !==
+                                        (tenant?.name ?? "").trim()
                                 }
                                 className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                             >

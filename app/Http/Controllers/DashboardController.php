@@ -5,14 +5,24 @@ namespace App\Http\Controllers;
 use App\Models\Incident;
 use App\Models\PatrolLog;
 use App\Models\BlotterRequest;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if (!app()->bound('current_tenant')) {
+            if ($request->user()?->is_super_admin) {
+                return redirect()->route('super.dashboard');
+            }
+
+            return redirect()->route('tenant.select')
+                ->with('warning', 'Please select a barangay to continue.');
+        }
+
         $tenant = app('current_tenant');
         $user = $request->user();
         $role = $user->roleIn($tenant);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PatrolLog;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,12 +16,14 @@ class PatrolLogController extends Controller
     {
         $tenant = app('current_tenant');
         $role = $request->user()?->roleIn($tenant);
-        if (!in_array($role, [
-            User::ROLE_PUROK_SECRETARY,
-            User::ROLE_PUROK_LEADER,
-            User::ROLE_COMMUNITY_WATCH,
-            User::ROLE_MEDIATOR,
-        ], true)) {
+        if (
+            !in_array($role, [
+                User::ROLE_PUROK_SECRETARY,
+                User::ROLE_PUROK_LEADER,
+                User::ROLE_COMMUNITY_WATCH,
+                User::ROLE_MEDIATOR,
+            ], true)
+        ) {
             abort(403, 'Only barangay admin/staff can access patrol logs.');
         }
     }
@@ -46,6 +49,8 @@ class PatrolLogController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->assertAdminOrStaff($request);
+        $tenant = app('current_tenant');
+
         $validated = $request->validate([
             'patrol_date' => 'required|date',
             'start_time' => 'nullable|date_format:H:i',
@@ -58,7 +63,22 @@ class PatrolLogController extends Controller
         ]);
         // tenant_id is auto-set by BelongsToTenant trait
         $validated['user_id'] = $request->user()->id;
-        PatrolLog::create($validated);
+
+        $patrolLog = PatrolLog::create($validated);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.patrol.create',
+            description: 'Created a patrol log entry.',
+            metadata: [
+                'patrol_date' => $patrolLog->patrol_date,
+                'area_patrolled' => $patrolLog->area_patrolled,
+            ],
+            targetType: 'patrol_log',
+            targetId: $patrolLog->id,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('patrol.index')->with('success', 'Patrol log saved.');
     }
 
@@ -72,6 +92,8 @@ class PatrolLogController extends Controller
     public function update(Request $request, PatrolLog $patrol): RedirectResponse
     {
         $this->assertAdminOrStaff($request);
+        $tenant = app('current_tenant');
+
         // Global scope ensures only tenant's patrol logs are accessible
         $validated = $request->validate([
             'patrol_date' => 'required|date',
@@ -83,7 +105,23 @@ class PatrolLogController extends Controller
             'response_details' => 'nullable|string',
             'response_time_minutes' => 'nullable|integer|min:0',
         ]);
+
+        $beforeDate = $patrol->patrol_date;
         $patrol->update($validated);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.patrol.update',
+            description: 'Updated a patrol log entry.',
+            metadata: [
+                'before_patrol_date' => $beforeDate,
+                'after_patrol_date' => $patrol->patrol_date,
+            ],
+            targetType: 'patrol_log',
+            targetId: $patrol->id,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('patrol.index')->with('success', 'Patrol log updated.');
     }
 }

@@ -9,7 +9,15 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $defaultConnection = config('database.default');
+        $defaultConfig = config("database.connections.{$defaultConnection}");
+
+        if ($defaultConfig) {
+            config([
+                'database.connections.central' => $defaultConfig,
+                'tenancy.central_connection' => 'central',
+            ]);
+        }
     }
 
     public function boot(): void

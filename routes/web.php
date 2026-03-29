@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\TenantSelectController;
 use App\Http\Controllers\BlotterRequestController;
@@ -8,7 +10,11 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\MediationController;
 use App\Http\Controllers\PatrolLogController;
+use App\Http\Controllers\SuperTenantSignupRequestController;
 use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\SuperActivityLogController;
+use App\Http\Controllers\SuperBackupController;
+use App\Http\Controllers\TenantSignupController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -18,8 +24,14 @@ Route::get('/', function () {
 Route::middleware('guest')->group(function () {
     Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('login', [LoginController::class, 'login']);
+    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+    Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.update');
     Route::get('register', [RegisterController::class, 'showRegistrationForm'])->name('register');
     Route::post('register', [RegisterController::class, 'register']);
+    Route::get('tenant-signup', [TenantSignupController::class, 'create'])->name('tenant-signup.create');
+    Route::post('tenant-signup', [TenantSignupController::class, 'store'])->name('tenant-signup.store');
 });
 
 Route::post('logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
@@ -30,7 +42,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // Tenant-scoped app (barangay staff & residents)
-Route::middleware(['auth', 'tenant', 'tenant.ensure'])->group(function () {
+Route::middleware(['auth', 'tenant', 'tenant.ensure', 'tenant.db'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
@@ -82,4 +94,17 @@ Route::middleware(['auth', 'super_admin'])->prefix('super')->name('super.')->gro
     Route::put('tenants/{tenant}/users/{user}', [SuperAdminController::class, 'updateTenantUserRole'])->name('tenants.users.update');
     Route::delete('tenants/{tenant}/users/{user}', [SuperAdminController::class, 'removeTenantUser'])->name('tenants.users.destroy');
     Route::post('tenants/{tenant}/toggle', [SuperAdminController::class, 'toggleActive'])->name('tenants.toggle');
+    Route::get('activity-logs', [SuperActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::get('tenant-signup-requests', [SuperTenantSignupRequestController::class, 'index'])->name('tenant-signup-requests.index');
+    Route::post('tenant-signup-requests/{signupRequest}/approve', [SuperTenantSignupRequestController::class, 'approve'])->name('tenant-signup-requests.approve');
+    Route::post('tenant-signup-requests/{signupRequest}/reject', [SuperTenantSignupRequestController::class, 'reject'])->name('tenant-signup-requests.reject');
+    Route::get('backup-restore', [SuperBackupController::class, 'index'])->name('backup-restore.index');
+    Route::post('backup-restore/create', [SuperBackupController::class, 'create'])->name('backup-restore.create');
+    Route::get('backup-restore/download/{filename}', [SuperBackupController::class, 'download'])
+        ->where('filename', '[A-Za-z0-9._-]+')
+        ->name('backup-restore.download');
+    Route::post('backup-restore/restore/{filename}', [SuperBackupController::class, 'restoreFromStored'])
+        ->where('filename', '[A-Za-z0-9._-]+')
+        ->name('backup-restore.restore');
+    Route::post('backup-restore/restore-upload', [SuperBackupController::class, 'restoreFromUpload'])->name('backup-restore.restore-upload');
 });

@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\IncidentReportedToOfficialsMail;
 use App\Models\Incident;
 use App\Models\IncidentAttachment;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -65,6 +70,9 @@ class IncidentController extends Controller
     {
         $this->assertCanSubmit($request);
         $tenant = app('current_tenant');
+        $reporter = $request->user();
+        $reporterRole = $reporter->roleIn($tenant);
+
         if (!$tenant->canAddIncident()) {
             return back()->with('error', 'Monthly incident limit reached.');
         }
@@ -103,7 +111,61 @@ class IncidentController extends Controller
             }
         }
 
+        $this->notifyOfficialsIfResidentOrCitizen($tenant, $incident, $reporter, $reporterRole);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.incident.create',
+            description: 'Created an incident report.',
+            metadata: [
+                'incident_type' => $incident->incident_type,
+                'status' => $incident->status,
+                'reported_role' => $reporterRole,
+            ],
+            targetType: 'incident',
+            targetId: $incident->id,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('incidents.show', $incident)->with('success', 'Incident recorded successfully.');
+    }
+
+    private function notifyOfficialsIfResidentOrCitizen(Tenant $tenant, Incident $incident, User $reporter, ?string $reporterRole): void
+    {
+        if (!in_array($reporterRole, [User::ROLE_RESIDENT, User::ROLE_CITIZEN], true)) {
+            return;
+        }
+
+        $officialRoles = [
+            User::ROLE_PUROK_LEADER,
+            User::ROLE_PUROK_SECRETARY,
+            User::ROLE_COMMUNITY_WATCH,
+            User::ROLE_MEDIATOR,
+        ];
+
+        $officialEmails = User::query()
+            ->whereHas('tenants', function ($query) use ($tenant, $officialRoles) {
+                $query
+                    ->where('tenants.id', $tenant->id)
+                    ->whereIn('tenant_user.role', $officialRoles);
+            })
+            ->whereNotNull('email')
+            ->pluck('email')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($officialEmails->isEmpty()) {
+            return;
+        }
+
+        try {
+            foreach ($officialEmails as $email) {
+                Mail::to($email)->send(new IncidentReportedToOfficialsMail($incident, $tenant, $reporter, $reporterRole));
+            }
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     public function show(Request $request, Incident $incident): Response|RedirectResponse
@@ -127,6 +189,9 @@ class IncidentController extends Controller
     public function update(Request $request, Incident $incident): RedirectResponse
     {
         // Global scope ensures only tenant's incidents are accessible
+        $tenant = app('current_tenant');
+        $beforeStatus = $incident->status;
+
         $validated = $request->validate([
             'incident_type' => 'required|string|max:255',
             'description' => 'required|string',
@@ -142,16 +207,48 @@ class IncidentController extends Controller
         ]);
 
         $incident->update($validated);
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.incident.update',
+            description: 'Updated an incident report.',
+            metadata: [
+                'before_status' => $beforeStatus,
+                'after_status' => $incident->status,
+                'incident_type' => $incident->incident_type,
+            ],
+            targetType: 'incident',
+            targetId: $incident->id,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('incidents.show', $incident)->with('success', 'Incident updated.');
     }
 
-    public function destroy(Incident $incident): RedirectResponse
+    public function destroy(Request $request, Incident $incident): RedirectResponse
     {
         // Global scope ensures only tenant's incidents are accessible
+        $tenant = app('current_tenant');
+        $incidentId = $incident->id;
+        $incidentType = $incident->incident_type;
+
         foreach ($incident->attachments as $att) {
             Storage::disk('public')->delete($att->file_path);
         }
         $incident->delete();
+
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.incident.delete',
+            description: 'Deleted an incident report.',
+            metadata: [
+                'incident_type' => $incidentType,
+            ],
+            targetType: 'incident',
+            targetId: $incidentId,
+            tenantId: $tenant->id,
+        );
+
         return redirect()->route('incidents.index')->with('success', 'Incident deleted.');
     }
 }

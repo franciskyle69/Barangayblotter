@@ -21,7 +21,7 @@ class PlanSeeder extends Seeder
                 'auto_case_number' => false,
                 'qr_verification' => false,
                 'central_monitoring' => false,
-                'price_monthly' => 0,
+                'price_monthly' => 1499,
             ],
             [
                 'name' => 'Standard',
@@ -34,7 +34,7 @@ class PlanSeeder extends Seeder
                 'auto_case_number' => false,
                 'qr_verification' => false,
                 'central_monitoring' => false,
-                'price_monthly' => 0,
+                'price_monthly' => 3499,
             ],
             [
                 'name' => 'Premium',
@@ -47,7 +47,7 @@ class PlanSeeder extends Seeder
                 'auto_case_number' => true,
                 'qr_verification' => true,
                 'central_monitoring' => true,
-                'price_monthly' => 0,
+                'price_monthly' => 6999,
             ],
         ];
 

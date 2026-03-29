@@ -1,4 +1,6 @@
 import { Link, router, usePage } from "@inertiajs/react";
+import { useEffect, useRef } from "react";
+import Swal from "sweetalert2";
 
 const centralNavItems = [
     { label: "Overview", mobileLabel: "Dashboard", href: "/super/dashboard" },
@@ -7,11 +9,27 @@ const centralNavItems = [
         mobileLabel: "Barangays",
         href: "/super/tenants",
     },
+    {
+        label: "Signup Requests",
+        mobileLabel: "Requests",
+        href: "/super/tenant-signup-requests",
+    },
+    {
+        label: "Activity Logs",
+        mobileLabel: "Logs",
+        href: "/super/activity-logs",
+    },
+    {
+        label: "Backup & Restore",
+        mobileLabel: "Backup",
+        href: "/super/backup-restore",
+    },
 ];
 
 export default function CentralLayout({ children }) {
     const page = usePage();
     const { auth, app_name, flash, logo_url } = page.props;
+    const lastFlashRef = useRef({ success: null, error: null, warning: null });
     const user = auth?.user;
     const path =
         page.url ||
@@ -21,6 +39,42 @@ export default function CentralLayout({ children }) {
         if (href === "/super/dashboard") return path === href;
         return path.startsWith(href);
     };
+
+    useEffect(() => {
+        const levels = [
+            {
+                key: "error",
+                title: "Error",
+                icon: "error",
+                text: flash?.error,
+            },
+            {
+                key: "warning",
+                title: "Warning",
+                icon: "warning",
+                text: flash?.warning,
+            },
+            {
+                key: "success",
+                title: "Success",
+                icon: "success",
+                text: flash?.success,
+            },
+        ];
+
+        for (const item of levels) {
+            if (item.text && item.text !== lastFlashRef.current[item.key]) {
+                lastFlashRef.current[item.key] = item.text;
+                Swal.fire({
+                    title: item.title,
+                    text: item.text,
+                    icon: item.icon,
+                    confirmButtonText: "OK",
+                });
+                break;
+            }
+        }
+    }, [flash?.success, flash?.error, flash?.warning]);
 
     return (
         <div
@@ -160,21 +214,6 @@ export default function CentralLayout({ children }) {
                         backgroundColor: "var(--color-central-bg, #f0f9ff)",
                     }}
                 >
-                    {flash?.success && (
-                        <div className="mb-4 rounded-devias border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-                            {flash.success}
-                        </div>
-                    )}
-                    {flash?.error && (
-                        <div className="mb-4 rounded-devias border border-red-200 bg-red-50 p-4 text-red-800">
-                            {flash.error}
-                        </div>
-                    )}
-                    {flash?.warning && (
-                        <div className="mb-4 rounded-devias border border-amber-200 bg-amber-50 p-4 text-amber-800">
-                            {flash.warning}
-                        </div>
-                    )}
                     {children}
                 </main>
             </div>

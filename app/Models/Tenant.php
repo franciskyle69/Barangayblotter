@@ -18,12 +18,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Tenant extends Model
 {
     use HasFactory;
+
+    protected $connection = 'central';
+
     protected $fillable = [
         'plan_id',
         'name',
         'slug',
         'subdomain',
         'custom_domain',
+        'database_name',
         'barangay',
         'address',
         'contact_phone',
