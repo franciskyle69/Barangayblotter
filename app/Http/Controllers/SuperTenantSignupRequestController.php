@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TenantAdminAccountCreatedMail;
 use App\Mail\TenantSignupApprovedMail;
 use App\Mail\TenantSignupRejectedMail;
 use App\Models\Plan;
@@ -13,6 +14,7 @@ use App\Services\DatabaseBackupService;
 use App\Services\TenantDatabaseManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Throwable;
@@ -62,13 +64,15 @@ class SuperTenantSignupRequestController extends Controller
             $tenantDatabases->provisionTenantDatabase($tenant);
 
             $adminUser = User::where('email', $signupRequest->requested_admin_email)->first();
+            $plainPassword = null;
 
             if (!$adminUser) {
+                $plainPassword = str()->random(16);
                 $adminUser = User::create([
                     'name' => $signupRequest->requested_admin_name,
                     'email' => $signupRequest->requested_admin_email,
                     'phone' => $signupRequest->requested_admin_phone,
-                    'password' => $signupRequest->requested_admin_password_hash,
+                    'password' => Hash::make($plainPassword),
                     'is_super_admin' => false,
                 ]);
 
@@ -92,6 +96,14 @@ class SuperTenantSignupRequestController extends Controller
             ]);
 
             $this->sendApprovedNotifications($signupRequest->fresh(), $tenant);
+
+            if ($plainPassword) {
+                try {
+                    Mail::to($adminUser->email)->send(new TenantAdminAccountCreatedMail($tenant, $adminUser, $plainPassword));
+                } catch (Throwable $mailException) {
+                    report($mailException);
+                }
+            }
 
             ActivityLogService::record(
                 request: $request,

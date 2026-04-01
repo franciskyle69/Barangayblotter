@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TenantAdminAccountCreatedMail;
 use App\Mail\TenantSignupApprovedMail;
 use App\Models\CentralIncidentSummary;
 use App\Models\Incident;
@@ -149,7 +150,6 @@ class SuperAdminController extends Controller
             'requested_admin_email' => 'nullable|email|max:255',
             'requested_admin_phone' => 'nullable|string|max:50',
             'requested_admin_role' => ['nullable', Rule::in(array_keys(User::tenantRoles()))],
-            'requested_admin_password' => 'nullable|string|min:8|confirmed',
         ]);
 
         $tenant = null;
@@ -184,17 +184,20 @@ class SuperAdminController extends Controller
             $shouldUseRequestedAdmin = (bool) ($validated['use_requested_admin_account'] ?? true);
             if ($signupRequest && $shouldUseRequestedAdmin && $signupRequest->requested_admin_email) {
                 $adminUser = User::where('email', $signupRequest->requested_admin_email)->first();
+                $plainPassword = null;
 
                 if (!$adminUser) {
+                    $plainPassword = str()->random(16);
                     $adminUser = User::create([
                         'name' => $signupRequest->requested_admin_name,
                         'email' => $signupRequest->requested_admin_email,
                         'phone' => $signupRequest->requested_admin_phone,
-                        'password' => $signupRequest->requested_admin_password_hash ?: Hash::make(str()->random(32)),
+                        'password' => Hash::make($plainPassword),
                         'is_super_admin' => false,
                     ]);
 
                     $createdUser = $adminUser;
+                    $createdUser->plainPassword = $plainPassword;
                 }
 
                 if ($adminUser->is_super_admin) {
@@ -218,6 +221,10 @@ class SuperAdminController extends Controller
 
                 try {
                     Mail::to($signupRequest->requested_admin_email)->send(new TenantSignupApprovedMail($signupRequest->fresh(), $tenant));
+                    
+                    if ($plainPassword) {
+                        Mail::to($adminUser->email)->send(new TenantAdminAccountCreatedMail($tenant, $adminUser, $plainPassword));
+                    }
                 } catch (Throwable $mailException) {
                     report($mailException);
                 }
@@ -225,6 +232,7 @@ class SuperAdminController extends Controller
                 $requestedEmail = strtolower(trim((string) $validated['requested_admin_email']));
                 $requestedName = trim((string) ($validated['requested_admin_name'] ?? ''));
                 $requestedRole = $validated['requested_admin_role'] ?? User::ROLE_PUROK_SECRETARY;
+                $plainPassword = null;
 
                 if ($requestedName === '') {
                     throw new \RuntimeException('Requested tenant admin name is required when assigning an admin account.');
@@ -233,19 +241,17 @@ class SuperAdminController extends Controller
                 $adminUser = User::where('email', $requestedEmail)->first();
 
                 if (!$adminUser) {
-                    if (empty($validated['requested_admin_password'])) {
-                        throw new \RuntimeException('Requested tenant admin password is required for new accounts.');
-                    }
-
+                    $plainPassword = str()->random(16);
                     $adminUser = User::create([
                         'name' => $requestedName,
                         'email' => $requestedEmail,
                         'phone' => $validated['requested_admin_phone'] ?? null,
-                        'password' => Hash::make($validated['requested_admin_password']),
+                        'password' => Hash::make($plainPassword),
                         'is_super_admin' => false,
                     ]);
 
                     $createdUser = $adminUser;
+                    $createdUser->plainPassword = $plainPassword;
                 }
 
                 if ($adminUser->is_super_admin) {
@@ -258,6 +264,14 @@ class SuperAdminController extends Controller
 
                 $adminAssigned = true;
                 $adminAssignmentSource = 'manual_form';
+
+                if ($plainPassword) {
+                    try {
+                        Mail::to($adminUser->email)->send(new TenantAdminAccountCreatedMail($tenant, $adminUser, $plainPassword));
+                    } catch (Throwable $mailException) {
+                        report($mailException);
+                    }
+                }
             }
         } catch (Throwable $e) {
             ActivityLogService::record(
