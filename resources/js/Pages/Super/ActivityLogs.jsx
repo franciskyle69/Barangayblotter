@@ -2,6 +2,8 @@ import { router } from "@inertiajs/react";
 import { useState } from "react";
 import CentralLayout from "../Layouts/CentralLayout";
 
+const PER_PAGE_OPTIONS = [10, 25, 30, 50, 100];
+
 export default function ActivityLogs({
     logs,
     filters,
@@ -16,6 +18,7 @@ export default function ActivityLogs({
         search: filters?.search ?? "",
         action: filters?.action ?? "",
         tenant_id: filters?.tenant_id ?? "",
+        per_page: filters?.per_page ?? "30",
     });
 
     const submitFilters = (event) => {
@@ -29,7 +32,13 @@ export default function ActivityLogs({
     };
 
     const clearFilters = () => {
-        const cleared = { search: "", action: "", tenant_id: "" };
+        const cleared = {
+            search: "",
+            action: "",
+            tenant_id: "",
+            per_page: "30",
+        };
+
         setForm(cleared);
         router.get("/super/activity-logs", cleared, {
             preserveState: true,
@@ -43,14 +52,35 @@ export default function ActivityLogs({
     return (
         <CentralLayout>
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold text-slate-800">
                         Central Activity Logs
                     </h1>
-                    <span className="text-sm text-slate-500">
-                        Showing {logs?.from ?? 0}-{logs?.to ?? 0} of{" "}
-                        {logs?.total ?? 0}
-                    </span>
+                    <div className="flex items-center gap-3 text-sm text-slate-500">
+                        <span>
+                            Showing {logs?.from ?? 0}-{logs?.to ?? 0} of{" "}
+                            {logs?.total ?? 0}
+                        </span>
+                        <label className="flex items-center gap-2">
+                            <span>Rows</span>
+                            <select
+                                value={form.per_page}
+                                onChange={(e) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        per_page: e.target.value,
+                                    }))
+                                }
+                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
+                            >
+                                {PER_PAGE_OPTIONS.map((option) => (
+                                    <option key={option} value={String(option)}>
+                                        {option}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                 </div>
 
                 {setupRequired && (
@@ -77,7 +107,7 @@ export default function ActivityLogs({
 
                 <form
                     onSubmit={submitFilters}
-                    className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-4"
+                    className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-5"
                 >
                     <input
                         type="text"
@@ -128,7 +158,7 @@ export default function ActivityLogs({
                         ))}
                     </select>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 lg:col-span-2 lg:justify-end">
                         <button
                             type="submit"
                             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
@@ -204,7 +234,7 @@ export default function ActivityLogs({
                         </table>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
                         <button
                             type="button"
                             disabled={!logs?.prev_page_url}

@@ -9,7 +9,8 @@ const STATUS_CLASS = {
 };
 
 export default function IncidentsIndex({ incidents, statuses, role }) {
-    const canEdit = !["resident", "citizen"].includes(role);
+    const { tenant_permissions: permissions = {} } = usePage().props;
+    const canEdit = Boolean(permissions.manage_incidents);
 
     const handleFilter = (e) => {
         e.preventDefault();

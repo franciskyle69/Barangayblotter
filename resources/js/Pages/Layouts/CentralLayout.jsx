@@ -10,6 +10,11 @@ const centralNavItems = [
         href: "/super/tenants",
     },
     {
+        label: "Roles & Permissions",
+        mobileLabel: "Roles",
+        href: "/super/roles-permissions",
+    },
+    {
         label: "Signup Requests",
         mobileLabel: "Requests",
         href: "/super/tenant-signup-requests",

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Incident;
 use App\Models\PatrolLog;
 use App\Models\BlotterRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -26,20 +27,30 @@ class DashboardController extends Controller
         $tenant = app('current_tenant');
         $user = $request->user();
         $role = $user->roleIn($tenant);
+        $isScopedToOwnIncidents = !$user->hasTenantPermission($tenant, 'manage_incidents');
 
         // Global scope automatically filters by current tenant
         $canSeeAnalytics = $tenant->plan->analytics_dashboard;
 
+        $incidentBaseQuery = Incident::query();
+        if ($isScopedToOwnIncidents) {
+            $incidentBaseQuery->where('reported_by_user_id', $user->id);
+        }
+
         $stats = [
-            'incidents_total' => Incident::count(),
-            'incidents_this_month' => Incident::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count(),
-            'open' => Incident::where('status', Incident::STATUS_OPEN)->count(),
-            'under_mediation' => Incident::where('status', Incident::STATUS_UNDER_MEDIATION)->count(),
-            'settled' => Incident::where('status', Incident::STATUS_SETTLED)->count(),
-            'escalated' => Incident::where('status', Incident::STATUS_ESCALATED)->count(),
+            'incidents_total' => (clone $incidentBaseQuery)->count(),
+            'incidents_this_month' => (clone $incidentBaseQuery)
+                ->whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->count(),
+            'open' => (clone $incidentBaseQuery)->where('status', Incident::STATUS_OPEN)->count(),
+            'under_mediation' => (clone $incidentBaseQuery)->where('status', Incident::STATUS_UNDER_MEDIATION)->count(),
+            'settled' => (clone $incidentBaseQuery)->where('status', Incident::STATUS_SETTLED)->count(),
+            'escalated' => (clone $incidentBaseQuery)->where('status', Incident::STATUS_ESCALATED)->count(),
         ];
 
         $recentIncidents = Incident::with(['reportedBy', 'mediations.mediator'])
+            ->when($isScopedToOwnIncidents, fn($query) => $query->where('reported_by_user_id', $user->id))
             ->latest()
             ->limit(10)
             ->get();

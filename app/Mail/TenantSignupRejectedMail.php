@@ -27,7 +27,8 @@ class TenantSignupRejectedMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.tenant-signup-rejected'
+            view: 'emails.tenant-signup-rejected',
+            text: 'emails.text.tenant-signup-rejected'
         );
     }
 }

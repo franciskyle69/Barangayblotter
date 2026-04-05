@@ -35,6 +35,7 @@ class TenantAdminAccountCreatedMail extends Mailable
     {
         return new Content(
             view: 'emails.tenant-admin-account-created',
+            text: 'emails.text.tenant-admin-account-created',
             with: [
                 'tenant' => $this->tenant,
                 'user' => $this->user,

@@ -27,7 +27,8 @@ class TenantSignupAdminAlertMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.tenant-signup-admin-alert'
+            view: 'emails.tenant-signup-admin-alert',
+            text: 'emails.text.tenant-signup-admin-alert'
         );
     }
 }

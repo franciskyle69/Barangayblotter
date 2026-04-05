@@ -33,7 +33,8 @@ class IncidentReportedToOfficialsMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.incident-reported-to-officials'
+            view: 'emails.incident-reported-to-officials',
+            text: 'emails.text.incident-reported-to-officials'
         );
     }
 }

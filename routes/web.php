@@ -10,8 +10,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\MediationController;
 use App\Http\Controllers\PatrolLogController;
+use App\Http\Controllers\TenantBrandingController;
+use App\Http\Controllers\TenantRolePermissionsController;
+use App\Http\Controllers\TenantSettingsController;
+use App\Http\Controllers\TenantUsersController;
 use App\Http\Controllers\SuperTenantSignupRequestController;
 use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\SuperRolePermissionsController;
 use App\Http\Controllers\SuperActivityLogController;
 use App\Http\Controllers\SuperBackupController;
 use App\Http\Controllers\TenantSignupController;
@@ -45,35 +50,66 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'tenant', 'tenant.ensure', 'tenant.db'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
-    Route::get('incidents/create', [IncidentController::class, 'create'])->name('incidents.create');
-    Route::post('incidents', [IncidentController::class, 'store'])->name('incidents.store');
+    Route::middleware('tenant.permission:manage_account_settings')->group(function () {
+        Route::get('settings', [TenantSettingsController::class, 'index'])->name('settings.index');
+        Route::put('settings/profile', [TenantSettingsController::class, 'updateProfile'])->name('settings.profile.update');
+        Route::put('settings/password', [TenantSettingsController::class, 'updatePassword'])->name('settings.password.update');
+    });
 
-    Route::middleware('tenant.role:citizen,resident')->group(function () {
+    Route::middleware('tenant.permission:view_incidents')->group(function () {
+        Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
+        Route::get('incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
+    });
+
+    Route::middleware('tenant.permission:create_incidents')->group(function () {
+        Route::get('incidents/create', [IncidentController::class, 'create'])->name('incidents.create');
+        Route::post('incidents', [IncidentController::class, 'store'])->name('incidents.store');
+    });
+
+    Route::middleware('tenant.permission:request_blotter_copy')->group(function () {
         Route::get('blotter-requests/create', [BlotterRequestController::class, 'create'])->name('blotter-requests.create');
         Route::post('blotter-requests', [BlotterRequestController::class, 'store'])->name('blotter-requests.store');
     });
 
-    Route::get('incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
-
     Route::get('blotter-requests', [BlotterRequestController::class, 'index'])->name('blotter-requests.index');
 
-    Route::middleware('tenant.role:purok_secretary,purok_leader,community_watch,mediator')->group(function () {
+    Route::middleware('tenant.permission:manage_branding')->group(function () {
+        Route::get('branding', [TenantBrandingController::class, 'edit'])->name('branding.edit');
+        Route::post('branding', [TenantBrandingController::class, 'update'])->name('branding.update');
+    });
+
+    Route::middleware('tenant.permission:manage_users')->group(function () {
+        Route::get('users', [TenantUsersController::class, 'index'])->name('users.index');
+        Route::post('users', [TenantUsersController::class, 'addTenantUser'])->name('users.store');
+        Route::post('users/create-account', [TenantUsersController::class, 'createTenantUser'])->name('users.create-account');
+        Route::put('users/{user}', [TenantUsersController::class, 'updateTenantUserRole'])->name('users.update');
+        Route::delete('users/{user}', [TenantUsersController::class, 'removeTenantUser'])->name('users.destroy');
+        Route::get('roles-permissions', [TenantRolePermissionsController::class, 'index'])->name('roles-permissions.index');
+        Route::put('roles-permissions/{role}', [TenantRolePermissionsController::class, 'update'])->name('roles-permissions.update');
+    });
+
+    Route::middleware('tenant.permission:manage_incidents')->group(function () {
         Route::get('incidents/{incident}/edit', [IncidentController::class, 'edit'])->name('incidents.edit');
         Route::put('incidents/{incident}', [IncidentController::class, 'update'])->name('incidents.update');
         Route::delete('incidents/{incident}', [IncidentController::class, 'destroy'])->name('incidents.destroy');
+    });
 
+    Route::middleware('tenant.permission:manage_mediations')->group(function () {
         Route::get('mediations', [MediationController::class, 'index'])->name('mediations.index');
         Route::get('incidents/{incident}/mediations/create', [MediationController::class, 'create'])->name('mediations.create');
         Route::post('mediations', [MediationController::class, 'store'])->name('mediations.store');
         Route::put('mediations/{mediation}', [MediationController::class, 'update'])->name('mediations.update');
+    });
 
+    Route::middleware('tenant.permission:manage_patrol_logs')->group(function () {
         Route::get('patrol', [PatrolLogController::class, 'index'])->name('patrol.index');
         Route::get('patrol/create', [PatrolLogController::class, 'create'])->name('patrol.create');
         Route::post('patrol', [PatrolLogController::class, 'store'])->name('patrol.store');
         Route::get('patrol/{patrol}/edit', [PatrolLogController::class, 'edit'])->name('patrol.edit');
         Route::put('patrol/{patrol}', [PatrolLogController::class, 'update'])->name('patrol.update');
+    });
 
+    Route::middleware('tenant.permission:review_blotter_requests')->group(function () {
         Route::post('blotter-requests/{blotterRequest}/approve', [BlotterRequestController::class, 'approve'])->name('blotter-requests.approve');
         Route::post('blotter-requests/{blotterRequest}/reject', [BlotterRequestController::class, 'reject'])->name('blotter-requests.reject');
     });
@@ -94,6 +130,8 @@ Route::middleware(['auth', 'super_admin'])->prefix('super')->name('super.')->gro
     Route::put('tenants/{tenant}/users/{user}', [SuperAdminController::class, 'updateTenantUserRole'])->name('tenants.users.update');
     Route::delete('tenants/{tenant}/users/{user}', [SuperAdminController::class, 'removeTenantUser'])->name('tenants.users.destroy');
     Route::post('tenants/{tenant}/toggle', [SuperAdminController::class, 'toggleActive'])->name('tenants.toggle');
+    Route::get('roles-permissions', [SuperRolePermissionsController::class, 'index'])->name('roles-permissions.index');
+    Route::put('roles-permissions/{role}', [SuperRolePermissionsController::class, 'update'])->name('roles-permissions.update');
     Route::get('activity-logs', [SuperActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('tenant-signup-requests', [SuperTenantSignupRequestController::class, 'index'])->name('tenant-signup-requests.index');
     Route::post('tenant-signup-requests/{signupRequest}/approve', [SuperTenantSignupRequestController::class, 'approve'])->name('tenant-signup-requests.approve');

@@ -1,4 +1,4 @@
-import { Link, router } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
 import { useState } from "react";
 import TenantLayout from "../Layouts/TenantLayout";
 
@@ -11,7 +11,8 @@ const STATUS_CLASS = {
 
 export default function BlotterRequestsIndex({ requests, role, filters = {} }) {
     const items = requests?.data ?? requests ?? [];
-    const isStaff = !["resident", "citizen"].includes(role);
+    const { tenant_permissions: permissions = {} } = usePage().props;
+    const isStaff = Boolean(permissions.review_blotter_requests);
     const [remarksById, setRemarksById] = useState({});
 
     const handleFilter = (e) => {

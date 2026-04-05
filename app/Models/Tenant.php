@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Tenant Model - Bridge between Tenancy Framework and Custom Database Schema
@@ -28,6 +29,15 @@ class Tenant extends Model
         'subdomain',
         'custom_domain',
         'database_name',
+        'logo_path',
+        'sidebar_label',
+        'theme_preset',
+        'theme_primary_color',
+        'theme_bg_color',
+        'theme_sidebar_color',
+        'login_background_path',
+        'login_background_opacity',
+        'login_background_blur',
         'barangay',
         'address',
         'contact_phone',
@@ -38,6 +48,9 @@ class Tenant extends Model
     {
         return [
             'is_active' => 'boolean',
+            'theme_preset' => 'string',
+            'login_background_opacity' => 'float',
+            'login_background_blur' => 'integer',
         ];
     }
 
@@ -130,6 +143,106 @@ class Tenant extends Model
         }
 
         return config('app.url');
+    }
+
+    public function getLogoUrlAttribute(): string
+    {
+        $logoPath = $this->getRawOriginal('logo_path');
+
+        if ($logoPath) {
+            if (str_starts_with($logoPath, 'images/') || str_starts_with($logoPath, '/images/')) {
+                return asset(ltrim($logoPath, '/'));
+            }
+
+            return asset('storage/' . $logoPath);
+        }
+
+        return '/images/logo.png';
+    }
+
+    public function getSidebarLabelAttribute(): string
+    {
+        $sidebarLabel = $this->getRawOriginal('sidebar_label');
+
+        return $sidebarLabel ?: $this->slug ?: $this->name;
+    }
+
+    public function getThemePresetAttribute(): string
+    {
+        $preset = $this->getRawOriginal('theme_preset');
+
+        return is_string($preset) && $preset !== '' ? $preset : 'default';
+    }
+
+    public function getThemePrimaryColorAttribute(): string
+    {
+        return $this->normalizeThemeColor(
+            $this->getRawOriginal('theme_primary_color'),
+            '#635bff'
+        );
+    }
+
+    public function getThemeBgColorAttribute(): string
+    {
+        return $this->normalizeThemeColor(
+            $this->getRawOriginal('theme_bg_color'),
+            '#f8fafc'
+        );
+    }
+
+    public function getThemeSidebarColorAttribute(): string
+    {
+        return $this->deriveSidebarColor($this->theme_primary_color);
+    }
+
+    public function getLoginBackgroundUrlAttribute(): ?string
+    {
+        $backgroundPath = $this->getRawOriginal('login_background_path');
+
+        if (!$backgroundPath) {
+            return null;
+        }
+
+        if (str_starts_with($backgroundPath, 'images/') || str_starts_with($backgroundPath, '/images/')) {
+            return asset(ltrim($backgroundPath, '/'));
+        }
+
+        return asset('storage/' . $backgroundPath);
+    }
+
+    public function themeCssVariables(): array
+    {
+        return [
+            '--color-tenant-primary' => $this->theme_primary_color,
+            '--color-tenant-bg' => $this->theme_bg_color,
+            '--color-tenant-sidebar' => $this->theme_sidebar_color,
+        ];
+    }
+
+    private function normalizeThemeColor(mixed $value, string $default): string
+    {
+        if (is_string($value) && preg_match('/^#[0-9a-fA-F]{6}$/', $value)) {
+            return $value;
+        }
+
+        return $default;
+    }
+
+    private function deriveSidebarColor(string $primaryColor): string
+    {
+        $hex = ltrim($primaryColor, '#');
+
+        if (!preg_match('/^[0-9a-fA-F]{6}$/', $hex)) {
+            return '#121621';
+        }
+
+        $red = hexdec(substr($hex, 0, 2));
+        $green = hexdec(substr($hex, 2, 2));
+        $blue = hexdec(substr($hex, 4, 2));
+
+        $shade = static fn(int $channel): int => max(0, (int) round($channel * 0.36));
+
+        return sprintf('#%02x%02x%02x', $shade($red), $shade($green), $shade($blue));
     }
 
     /* ─── Relationships ─── */

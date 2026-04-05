@@ -70,7 +70,10 @@ class TenantDatabaseManager
 
     private function generateDatabaseName(int|string $tenantId): string
     {
-        return 'tenant_' . $tenantId;
+        // Hash the tenant ID for obfuscation
+        // Use first 12 chars of SHA256 hash for security while keeping it reasonably short
+        $hash = substr(hash('sha256', (string) $tenantId), 0, 12);
+        return 'tenant_' . $hash;
     }
 
     private function centralConnectionName(): string

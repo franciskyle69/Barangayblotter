@@ -30,7 +30,8 @@ class TenantSignupApprovedMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.tenant-signup-approved'
+            view: 'emails.tenant-signup-approved',
+            text: 'emails.text.tenant-signup-approved'
         );
     }
 }

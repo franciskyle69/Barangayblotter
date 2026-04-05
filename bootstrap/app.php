@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.ensure' => \App\Http\Middleware\EnsureUserBelongsToTenant::class,
             'tenant.db' => \App\Http\Middleware\SwitchTenantDatabase::class,
             'tenant.role' => \App\Http\Middleware\EnsureTenantRole::class,
+            'tenant.permission' => \App\Http\Middleware\EnsureTenantPermission::class,
             'super_admin' => \App\Http\Middleware\SuperAdminOnly::class,
         ]);
     })

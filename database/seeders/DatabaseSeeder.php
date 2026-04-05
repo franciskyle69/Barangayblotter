@@ -10,6 +10,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PlanSeeder::class,
+            PermissionRoleSeeder::class,
                 // TenantSeeder::class, // ⚠️ DISABLED - No automatic tenant seeding
                 // Create tenants manually via:
                 // - Web UI: /super/tenants/create

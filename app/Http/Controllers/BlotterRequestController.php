@@ -13,18 +13,23 @@ use Inertia\Response;
 
 class BlotterRequestController extends Controller
 {
-    private function isCitizenLike(?string $role): bool
+    private function shouldScopeRequestsToCurrentUser(Request $request): bool
     {
-        return in_array($role, [User::ROLE_RESIDENT, User::ROLE_CITIZEN], true);
+        $tenant = app('current_tenant');
+
+        return $tenant
+            ? !$request->user()?->hasTenantPermission($tenant, 'review_blotter_requests')
+            : true;
     }
 
-    private function canReviewRequests(?string $role): bool
+    private function canReviewRequests(Request $request): bool
     {
-        return in_array($role, [
-            User::ROLE_PUROK_SECRETARY,
-            User::ROLE_PUROK_LEADER,
-            User::ROLE_COMMUNITY_WATCH,
-        ], true);
+        $tenant = app('current_tenant');
+        $user = $request->user();
+
+        return $tenant && $user
+            ? $user->hasTenantPermission($tenant, 'review_blotter_requests')
+            : false;
     }
 
     public function index(Request $request): Response
@@ -36,7 +41,7 @@ class BlotterRequestController extends Controller
         // Global scope handles tenant filtering
         $query = BlotterRequest::with(['incident', 'requestedBy', 'reviewedBy']);
 
-        if ($this->isCitizenLike($role)) {
+        if ($this->shouldScopeRequestsToCurrentUser($request)) {
             $query->where('requested_by_user_id', $user->id);
         }
 
@@ -112,8 +117,7 @@ class BlotterRequestController extends Controller
     public function approve(Request $request, BlotterRequest $blotterRequest): RedirectResponse
     {
         $tenant = app('current_tenant');
-        $role = $request->user()?->roleIn($tenant);
-        if (!$this->canReviewRequests($role)) {
+        if (!$this->canReviewRequests($request)) {
             abort(403, 'Only barangay admin/staff can approve requests.');
         }
 
@@ -146,8 +150,7 @@ class BlotterRequestController extends Controller
     public function reject(Request $request, BlotterRequest $blotterRequest): RedirectResponse
     {
         $tenant = app('current_tenant');
-        $role = $request->user()?->roleIn($tenant);
-        if (!$this->canReviewRequests($role)) {
+        if (!$this->canReviewRequests($request)) {
             abort(403, 'Only barangay admin/staff can reject requests.');
         }
 

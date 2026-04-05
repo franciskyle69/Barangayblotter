@@ -84,7 +84,7 @@ class SuperTenantSignupRequestController extends Controller
             }
 
             $tenant->users()->syncWithoutDetaching([
-                $adminUser->id => ['role' => $signupRequest->requested_admin_role ?: User::ROLE_PUROK_SECRETARY],
+                $adminUser->id => ['role' => User::ROLE_BARANGAY_ADMIN],
             ]);
 
             $signupRequest->update([

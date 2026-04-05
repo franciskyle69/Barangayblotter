@@ -18,11 +18,15 @@ use Inertia\Response;
 
 class IncidentController extends Controller
 {
+    private function isScopedIncidentViewer(Request $request, Tenant $tenant): bool
+    {
+        return !$request->user()?->hasTenantPermission($tenant, 'manage_incidents');
+    }
+
     private function assertCanSubmit(Request $request): void
     {
         $tenant = app('current_tenant');
-        $role = $request->user()?->roleIn($tenant);
-        if (!$role) {
+        if (!$request->user()?->hasTenantPermission($tenant, 'create_incidents')) {
             abort(403, 'You must have a role in this barangay to report an incident.');
         }
     }
@@ -31,6 +35,11 @@ class IncidentController extends Controller
     {
         $tenant = app('current_tenant');
         $query = Incident::with(['reportedBy', 'mediations.mediator']);
+        $role = $request->user()->roleIn($tenant);
+
+        if ($this->isScopedIncidentViewer($request, $tenant)) {
+            $query->where('reported_by_user_id', $request->user()->id);
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -46,7 +55,6 @@ class IncidentController extends Controller
         }
 
         $incidents = $query->latest('incident_date')->paginate(15);
-        $role = $request->user()->roleIn($tenant);
         return Inertia::render('Incidents/Index', [
             'incidents' => $incidents,
             'statuses' => Incident::statuses(),
@@ -137,6 +145,7 @@ class IncidentController extends Controller
         }
 
         $officialRoles = [
+            User::ROLE_BARANGAY_ADMIN,
             User::ROLE_PUROK_LEADER,
             User::ROLE_PUROK_SECRETARY,
             User::ROLE_COMMUNITY_WATCH,
@@ -174,6 +183,14 @@ class IncidentController extends Controller
         $incident->load(['attachments', 'mediations.mediator', 'reportedBy']);
         $tenant = app('current_tenant');
         $role = $request->user()->roleIn($tenant);
+
+        if (
+            $this->isScopedIncidentViewer($request, $tenant)
+            && $incident->reported_by_user_id !== $request->user()->id
+        ) {
+            abort(403, 'You can only view incidents that you submitted.');
+        }
+
         return Inertia::render('Incidents/Show', ['incident' => $incident, 'role' => $role]);
     }
 

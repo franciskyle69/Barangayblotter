@@ -27,7 +27,8 @@ class TenantSignupSubmittedMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'emails.tenant-signup-submitted'
+            view: 'emails.tenant-signup-submitted',
+            text: 'emails.text.tenant-signup-submitted'
         );
     }
 }

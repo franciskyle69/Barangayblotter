@@ -9,9 +9,12 @@ const STATUS_CLASS = {
 };
 
 export default function IncidentsShow({ incident, role }) {
-    const { current_tenant } = usePage().props;
-    const canEdit = !["resident", "citizen"].includes(role);
+    const { current_tenant, tenant_permissions: permissions = {} } =
+        usePage().props;
+    const canEdit = Boolean(permissions.manage_incidents);
+    const canRequestBlotterCopy = Boolean(permissions.request_blotter_copy);
     const canScheduleMediation =
+        permissions.manage_mediations &&
         current_tenant?.plan?.mediation_scheduling &&
         incident.status !== "settled" &&
         incident.status !== "escalated_to_barangay";
@@ -50,12 +53,14 @@ export default function IncidentsShow({ incident, role }) {
                                 Schedule mediation
                             </Link>
                         )}
-                        <Link
-                            href={`/blotter-requests/create?incident_id=${incident.id}`}
-                            className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
-                        >
-                            Request certified copy
-                        </Link>
+                        {canRequestBlotterCopy && (
+                            <Link
+                                href={`/blotter-requests/create?incident_id=${incident.id}`}
+                                className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
+                            >
+                                Request certified copy
+                            </Link>
+                        )}
                     </div>
                 )}
             </div>

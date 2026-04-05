@@ -1,39 +1,21 @@
-<!doctype html>
-<html>
-
-<head>
-    <meta charset="utf-8">
-    <title>New Incident Reported</title>
-</head>
-
-<body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
-    <h2 style="margin-bottom: 12px;">New incident report received</h2>
-
-    <p>
-        A {{ $reporterRole === 'resident' ? 'resident' : 'citizen' }} submitted a new incident report in
-        <strong>{{ $tenant->name }}</strong>.
-    </p>
-
-    <p><strong>Incident details:</strong></p>
-    <ul>
-        <li>Type: {{ $incident->incident_type }}</li>
-        <li>Date: {{ optional($incident->incident_date)->format('M d, Y h:i A') }}</li>
-        <li>Location: {{ $incident->location ?: 'Not specified' }}</li>
-        <li>Status: {{ ucfirst(str_replace('_', ' ', $incident->status)) }}</li>
-        <li>Complainant: {{ $incident->complainant_name }}</li>
-        <li>Respondent: {{ $incident->respondent_name }}</li>
-        <li>Reported by account: {{ $reporter->name }} ({{ $reporter->email }})</li>
-    </ul>
-
-    <p><strong>Description:</strong></p>
-    <p>{{ $incident->description }}</p>
-
-    <p>
-        Review the report here:
-        <a href="{{ url('/incidents/' . $incident->id) }}">{{ url('/incidents/' . $incident->id) }}</a>
-    </p>
-
-    <p style="margin-top: 20px;">Regards,<br>{{ config('app.name') }}</p>
-</body>
-
-</html>
+@php
+    $title = 'New Incident Reported';
+    $heading = 'New incident report received';
+    $statusLabel = ucfirst($incident->status);
+    $statusTone = 'info';
+    $message = 'A ' . e($reporterRole === 'resident' ? 'resident' : 'citizen') . ' submitted a new incident report in <strong>' . e($tenant->name) . '</strong>.';
+    $bodyLines = [
+        'Type: ' . e($incident->incident_type),
+        'Date: ' . e(optional($incident->incident_date)->format('M d, Y h:i A')),
+        'Location: ' . e($incident->location ?: 'Not specified'),
+        'Status: ' . e(ucfirst(str_replace('_', ' ', $incident->status))),
+        'Complainant: ' . e($incident->complainant_name),
+        'Respondent: ' . e($incident->respondent_name),
+        'Reported by account: ' . e($reporter->name . ' (' . $reporter->email . ')'),
+    ];
+    $secondaryText = '<strong>Description:</strong> ' . e($incident->description);
+    $ctaText = 'View Incident';
+    $ctaUrl = url('/incidents/' . $incident->id);
+    $footer = 'Please review the incident as soon as possible.';
+@endphp
+@include('emails.partials.layout')

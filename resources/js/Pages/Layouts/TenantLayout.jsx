@@ -1,29 +1,53 @@
 import { Link, router, usePage } from "@inertiajs/react";
+import { useEffect } from "react";
 
-const navItems = (tenant, role) => {
-    const isCitizenLike = ["resident", "citizen"].includes(role);
-    if (isCitizenLike) {
-        return [
-            { label: "Overview", mobileLabel: "Dashboard", href: "/dashboard" },
-            {
-                label: "Report an Incident",
-                mobileLabel: "Report",
-                href: "/incidents",
-            },
-            {
-                label: "My Requests",
-                mobileLabel: "Requests",
-                href: "/blotter-requests",
-            },
-        ];
-    }
-
+const navItems = (tenant, permissions = {}) => {
     const items = [
         { label: "Overview", mobileLabel: "Dashboard", href: "/dashboard" },
-        { label: "Incidents", mobileLabel: "Incidents", href: "/incidents" },
     ];
 
-    if (tenant?.plan?.mediation_scheduling) {
+    if (permissions.view_incidents || permissions.create_incidents) {
+        items.push({
+            label: permissions.manage_incidents
+                ? "Incidents"
+                : "Report an Incident",
+            mobileLabel: permissions.manage_incidents ? "Incidents" : "Report",
+            href: "/incidents",
+        });
+    }
+
+    if (permissions.review_blotter_requests) {
+        items.push({
+            label: "Blotter Requests",
+            mobileLabel: "Blotter",
+            href: "/blotter-requests",
+        });
+    } else if (permissions.request_blotter_copy) {
+        items.push({
+            label: "My Requests",
+            mobileLabel: "Requests",
+            href: "/blotter-requests",
+        });
+    }
+
+    if (permissions.manage_users) {
+        items.push({ label: "Users", mobileLabel: "Users", href: "/users" });
+        items.push({
+            label: "Roles & Permissions",
+            mobileLabel: "Roles",
+            href: "/roles-permissions",
+        });
+    }
+
+    if (permissions.manage_branding) {
+        items.push({
+            label: "Branding",
+            mobileLabel: "Branding",
+            href: "/branding",
+        });
+    }
+
+    if (tenant?.plan?.mediation_scheduling && permissions.manage_mediations) {
         items.push({
             label: "Mediations",
             mobileLabel: "Mediations",
@@ -31,14 +55,17 @@ const navItems = (tenant, role) => {
         });
     }
 
-    items.push(
-        { label: "Patrol", mobileLabel: "Patrol", href: "/patrol" },
-        {
-            label: "Blotter Requests",
-            mobileLabel: "Blotter",
-            href: "/blotter-requests",
-        },
-    );
+    if (permissions.manage_patrol_logs) {
+        items.push({ label: "Patrol", mobileLabel: "Patrol", href: "/patrol" });
+    }
+
+    if (permissions.manage_account_settings) {
+        items.push({
+            label: "Settings",
+            mobileLabel: "Settings",
+            href: "/settings",
+        });
+    }
 
     return items;
 };
@@ -59,21 +86,69 @@ const ChevronDownIcon = () => (
     </svg>
 );
 
+const hexToRgba = (hex, alpha) => {
+    const normalized = String(hex || "").replace("#", "");
+
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+        return `rgba(99, 91, 255, ${alpha})`;
+    }
+
+    const red = parseInt(normalized.slice(0, 2), 16);
+    const green = parseInt(normalized.slice(2, 4), 16);
+    const blue = parseInt(normalized.slice(4, 6), 16);
+
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
 export default function TenantLayout({ children }) {
     const page = usePage();
     const {
         auth,
         current_tenant,
-        current_tenant_role,
+        tenant_permissions,
         app_name,
         flash,
         logo_url,
     } = page.props;
     const user = auth?.user;
-    const items = navItems(current_tenant, current_tenant_role);
+    const items = navItems(current_tenant, tenant_permissions);
+    const tenantLabel =
+        current_tenant?.sidebar_label || current_tenant?.name || "Tenant";
+    const tenantLogo =
+        current_tenant?.logo_url || logo_url || "/images/logo.png";
+    const tenantTheme = current_tenant?.theme_css_variables || {};
+    const tenantPrimary = current_tenant?.theme_primary_color || "#635bff";
+    const tenantSidebar = current_tenant?.theme_sidebar_color || "#121621";
+    const tenantPrimarySoft = hexToRgba(tenantPrimary, 0.12);
+    const tenantPrimaryBadge = hexToRgba(tenantPrimary, 0.1);
     const path =
         page.url ||
         (typeof window !== "undefined" ? window.location.pathname : "");
+
+    useEffect(() => {
+        if (typeof document === "undefined") {
+            return;
+        }
+
+        const baseTitle = app_name || "Malaybalay Barangay Blotter";
+        document.title = current_tenant
+            ? `${tenantLabel} - ${baseTitle}`
+            : baseTitle;
+
+        const ensureIcon = (selector, rel) => {
+            let link = document.querySelector(selector);
+            if (!link) {
+                link = document.createElement("link");
+                link.setAttribute("rel", rel);
+                document.head.appendChild(link);
+            }
+            link.setAttribute("type", "image/png");
+            link.setAttribute("href", tenantLogo);
+        };
+
+        ensureIcon('link[rel="icon"]', "icon");
+        ensureIcon('link[rel="shortcut icon"]', "shortcut icon");
+    }, [app_name, current_tenant, tenantLabel, tenantLogo]);
 
     const isActive = (href) => {
         if (href === "/dashboard") return path === href;
@@ -83,13 +158,16 @@ export default function TenantLayout({ children }) {
     return (
         <div
             className="flex min-h-screen"
-            style={{ backgroundColor: "var(--color-tenant-bg, #f8fafc)" }}
+            style={{
+                backgroundColor: "var(--color-tenant-bg, #f8fafc)",
+                ...tenantTheme,
+            }}
         >
             {/* TENANT APP SIDEBAR - Purple/Indigo Theme */}
             <aside
                 className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r lg:flex"
                 style={{
-                    backgroundColor: "var(--color-tenant-sidebar, #121621)",
+                    backgroundColor: tenantSidebar,
                     borderColor: "rgba(255, 255, 255, 0.05)",
                 }}
             >
@@ -98,10 +176,12 @@ export default function TenantLayout({ children }) {
                     style={{ borderColor: "rgba(255, 255, 255, 0.05)" }}
                 >
                     <img
-                        src={logo_url || "/images/logo.png"}
+                        src={tenantLogo}
                         alt="Logo"
                         className="h-9 w-9 shrink-0 rounded-devias object-contain"
-                        style={{ backgroundColor: "rgba(99, 91, 255, 0.2)" }}
+                        style={{
+                            backgroundColor: "rgba(99, 91, 255, 0.2)",
+                        }}
                         onError={(e) => {
                             e.target.style.display = "none";
                             e.target.nextSibling?.classList.remove("hidden");
@@ -118,7 +198,7 @@ export default function TenantLayout({ children }) {
                         MB
                     </span>
                     <span className="truncate text-base font-semibold text-white">
-                        {app_name || "Malaybalay Barangay Blotter"}
+                        {tenantLabel}
                     </span>
                 </div>
                 <nav
@@ -136,7 +216,7 @@ export default function TenantLayout({ children }) {
                             }`}
                             style={{
                                 backgroundColor: isActive(item.href)
-                                    ? "rgba(99, 91, 255, 0.2)"
+                                    ? hexToRgba(tenantPrimary, 0.2)
                                     : "transparent",
                             }}
                         >
@@ -155,12 +235,15 @@ export default function TenantLayout({ children }) {
                                 href={item.href}
                                 className={`rounded-devias px-2.5 py-1.5 text-sm font-medium transition ${
                                     isActive(item.href)
-                                        ? "text-purple-600"
+                                        ? "font-semibold"
                                         : "text-slate-600 hover:bg-slate-100"
                                 }`}
                                 style={{
+                                    color: isActive(item.href)
+                                        ? "var(--color-tenant-primary, #635bff)"
+                                        : "inherit",
                                     backgroundColor: isActive(item.href)
-                                        ? "rgba(99, 91, 255, 0.1)"
+                                        ? tenantPrimarySoft
                                         : "transparent",
                                 }}
                             >
@@ -173,12 +256,13 @@ export default function TenantLayout({ children }) {
                         <div
                             className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide"
                             style={{
-                                borderColor: "#10b981",
-                                backgroundColor: "rgba(16, 185, 129, 0.1)",
-                                color: "#059669",
+                                borderColor:
+                                    "var(--color-tenant-primary, #635bff)",
+                                backgroundColor: tenantPrimaryBadge,
+                                color: "var(--color-tenant-primary, #635bff)",
                             }}
                         >
-                            🏘️ {current_tenant.name}
+                            🏘️ {tenantLabel}
                         </div>
                     )}
                     <div className="ml-auto flex items-center justify-end gap-3">

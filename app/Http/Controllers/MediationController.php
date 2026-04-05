@@ -14,25 +14,17 @@ use Inertia\Response;
 
 class MediationController extends Controller
 {
-    private function assertAdminOrStaff(Request $request): void
+    private function assertCanManageMediations(Request $request): void
     {
         $tenant = app('current_tenant');
-        $role = $request->user()?->roleIn($tenant);
-        if (
-            !in_array($role, [
-                User::ROLE_PUROK_SECRETARY,
-                User::ROLE_PUROK_LEADER,
-                User::ROLE_COMMUNITY_WATCH,
-                User::ROLE_MEDIATOR,
-            ], true)
-        ) {
-            abort(403, 'Only barangay admin/staff can access mediations.');
+        if (!$request->user()?->hasTenantPermission($tenant, 'manage_mediations')) {
+            abort(403, 'You do not have permission to access mediations.');
         }
     }
 
     public function index(Request $request): Response
     {
-        $this->assertAdminOrStaff($request);
+        $this->assertCanManageMediations($request);
         // Global scope on Incident handles tenant filtering
         $incidentsWithMediations = Incident::whereHas('mediations')
             ->with(['mediations.mediator'])
@@ -43,7 +35,7 @@ class MediationController extends Controller
 
     public function create(Incident $incident): Response|RedirectResponse
     {
-        $this->assertAdminOrStaff(request());
+        $this->assertCanManageMediations(request());
         $tenant = app('current_tenant');
         // Global scope ensures $incident belongs to current tenant via route model binding
         if (!$tenant->plan->mediation_scheduling) {
@@ -58,7 +50,7 @@ class MediationController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->assertAdminOrStaff($request);
+        $this->assertCanManageMediations($request);
         $tenant = app('current_tenant');
 
         $validated = $request->validate([
@@ -102,7 +94,7 @@ class MediationController extends Controller
 
     public function update(Request $request, Mediation $mediation): RedirectResponse
     {
-        $this->assertAdminOrStaff($request);
+        $this->assertCanManageMediations($request);
         $tenant = app('current_tenant');
         $beforeStatus = $mediation->status;
 

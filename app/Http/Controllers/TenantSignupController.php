@@ -60,7 +60,6 @@ class TenantSignupController extends Controller
             'requested_admin_name' => ['required', 'string', 'max:255'],
             'requested_admin_email' => ['required', 'email', 'max:255'],
             'requested_admin_phone' => ['nullable', 'string', 'max:50'],
-            'requested_admin_role' => ['required', Rule::in([User::ROLE_PUROK_SECRETARY, User::ROLE_PUROK_LEADER])],
             'requested_admin_password' => ['required', 'string', 'min:8', 'confirmed'],
             'requested_plan_id' => ['nullable', 'exists:plans,id'],
         ]);
@@ -68,6 +67,7 @@ class TenantSignupController extends Controller
         // Requested tenant admin acts as the primary contact.
         $validated['contact_name'] = $validated['requested_admin_name'];
         $validated['contact_email'] = $validated['requested_admin_email'];
+        $validated['requested_admin_role'] = User::ROLE_BARANGAY_ADMIN;
 
         $validated['requested_admin_password_hash'] = Hash::make($validated['requested_admin_password']);
         unset($validated['requested_admin_password'], $validated['requested_admin_password_confirmation']);

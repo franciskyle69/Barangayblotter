@@ -3,6 +3,22 @@ import { useForm, Link, router } from "@inertiajs/react";
 import CentralLayout from "../Layouts/CentralLayout";
 import Swal from "sweetalert2";
 
+const logoOptions = [
+    {
+        value: "default",
+        label: "Default App Logo",
+        preview: "/images/logo.png",
+    },
+    { value: "blue", label: "Blue Seal", preview: "/images/logo-blue.svg" },
+    { value: "green", label: "Green Seal", preview: "/images/logo-green.svg" },
+    { value: "amber", label: "Amber Seal", preview: "/images/logo-amber.svg" },
+    {
+        value: "custom",
+        label: "Upload Custom Logo",
+        preview: "/images/logo.png",
+    },
+];
+
 export default function TenantForm({
     tenant,
     plans,
@@ -23,22 +39,27 @@ export default function TenantForm({
         slug: tenant?.slug ?? "",
         subdomain: tenant?.subdomain ?? "",
         custom_domain: tenant?.custom_domain ?? "",
+        sidebar_label: tenant?.sidebar_label ?? "",
         barangay: tenant?.barangay ?? "",
         address: tenant?.address ?? "",
         contact_phone: tenant?.contact_phone ?? "",
         requested_admin_name: "",
         requested_admin_email: "",
         requested_admin_phone: "",
-        requested_admin_role: "purok_secretary",
-        requested_admin_password: "",
-        requested_admin_password_confirmation: "",
         plan_id: tenant?.plan_id ?? plans?.[0]?.id ?? "",
         is_active: tenant?.is_active ?? true,
+        logo_choice: tenant?.logo_choice ?? "default",
+        logo_file: null,
         signup_request_id: initialSignupRequestId
             ? String(initialSignupRequestId)
             : "",
-        use_requested_admin_account: true,
     });
+
+    useEffect(() => {
+        if (data.logo_choice !== "custom" && data.logo_file) {
+            setData("logo_file", null);
+        }
+    }, [data.logo_choice, data.logo_file, setData]);
 
     const selectedSignupRequest = !isEditing
         ? pendingSignupRequests.find(
@@ -71,6 +92,7 @@ export default function TenantForm({
             slug: request.slug ?? prev.slug,
             subdomain: request.subdomain ?? "",
             custom_domain: request.custom_domain ?? "",
+            sidebar_label: request.sidebar_label ?? prev.sidebar_label,
             barangay: request.barangay ?? "",
             address: request.address ?? "",
             contact_phone: request.contact_phone ?? "",
@@ -80,12 +102,9 @@ export default function TenantForm({
                 request.requested_admin_email ?? prev.requested_admin_email,
             requested_admin_phone:
                 request.requested_admin_phone ?? prev.requested_admin_phone,
-            requested_admin_role:
-                request.requested_admin_role ?? prev.requested_admin_role,
-            requested_admin_password: "",
-            requested_admin_password_confirmation: "",
+            logo_choice: request.logo_choice ?? prev.logo_choice,
+            logo_file: null,
             plan_id: request.requested_plan_id ?? prev.plan_id,
-            use_requested_admin_account: true,
         }));
     };
 
@@ -105,6 +124,7 @@ export default function TenantForm({
                 slug: request.slug ?? prev.slug,
                 subdomain: request.subdomain ?? prev.subdomain,
                 custom_domain: request.custom_domain ?? prev.custom_domain,
+                sidebar_label: request.sidebar_label ?? prev.sidebar_label,
                 barangay: request.barangay ?? prev.barangay,
                 address: request.address ?? prev.address,
                 contact_phone: request.contact_phone ?? prev.contact_phone,
@@ -114,12 +134,9 @@ export default function TenantForm({
                     request.requested_admin_email ?? prev.requested_admin_email,
                 requested_admin_phone:
                     request.requested_admin_phone ?? prev.requested_admin_phone,
-                requested_admin_role:
-                    request.requested_admin_role ?? prev.requested_admin_role,
-                requested_admin_password: "",
-                requested_admin_password_confirmation: "",
+                logo_choice: request.logo_choice ?? prev.logo_choice,
+                logo_file: null,
                 plan_id: request.requested_plan_id ?? prev.plan_id,
-                use_requested_admin_account: true,
             }));
         }
         // Initial hydration for URL-selected signup request.
@@ -128,10 +145,17 @@ export default function TenantForm({
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        const needsFormData =
+            data.logo_choice === "custom" && Boolean(data.logo_file);
+
         if (isEditing) {
-            put(`/super/tenants/${tenant.id}`);
+            put(`/super/tenants/${tenant.id}`, {
+                forceFormData: needsFormData,
+            });
         } else {
-            post("/super/tenants");
+            post("/super/tenants", {
+                forceFormData: needsFormData,
+            });
         }
     };
 
@@ -241,7 +265,9 @@ export default function TenantForm({
                                         )
                                     }
                                     className={inputClass}
-                                    disabled={pendingSignupRequests.length === 0}
+                                    disabled={
+                                        pendingSignupRequests.length === 0
+                                    }
                                 >
                                     <option value="">
                                         {pendingSignupRequests.length > 0
@@ -280,8 +306,7 @@ export default function TenantForm({
                                     <span className="font-semibold">
                                         Requested Role:
                                     </span>{" "}
-                                    {selectedSignupRequest.requested_admin_role ||
-                                        "purok_secretary"}
+                                    Barangay Admin
                                 </p>
                             </div>
                         )}
@@ -416,6 +441,129 @@ export default function TenantForm({
                     </div>
                 </div>
 
+                <div className="border-b border-slate-200 pb-4">
+                    <h2 className="mb-4 text-lg font-semibold text-slate-700">
+                        Branding
+                    </h2>
+                    <div className="grid gap-6 lg:grid-cols-[1fr_280px] lg:items-start">
+                        <div>
+                            <label className={labelClass}>Sidebar Label</label>
+                            <input
+                                type="text"
+                                value={data.sidebar_label}
+                                onChange={(e) =>
+                                    setData("sidebar_label", e.target.value)
+                                }
+                                className={inputClass}
+                                placeholder={
+                                    tenant?.slug ?? tenant?.name ?? "Barangay"
+                                }
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                                Leave blank to use the tenant slug or barangay
+                                name.
+                            </p>
+                            {errors.sidebar_label && (
+                                <p className={errorClass}>
+                                    {errors.sidebar_label}
+                                </p>
+                            )}
+
+                            <div className="mt-5">
+                                <label className={labelClass}>Logo</label>
+                                <select
+                                    value={data.logo_choice}
+                                    onChange={(e) =>
+                                        setData("logo_choice", e.target.value)
+                                    }
+                                    className={inputClass}
+                                >
+                                    {logoOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Choose a preset logo or upload a custom one.
+                                </p>
+                                {data.logo_choice === "custom" && (
+                                    <div className="mt-3">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) =>
+                                                setData(
+                                                    "logo_file",
+                                                    e.target.files?.[0] ?? null,
+                                                )
+                                            }
+                                            className={inputClass}
+                                        />
+                                        {errors.logo_file && (
+                                            <p className={errorClass}>
+                                                {errors.logo_file}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center gap-3">
+                                <img
+                                    src={
+                                        logoOptions.find(
+                                            (option) =>
+                                                option.value ===
+                                                data.logo_choice,
+                                        )?.preview ?? "/images/logo.png"
+                                    }
+                                    alt="Tenant logo preview"
+                                    className="h-14 w-14 rounded-lg border border-slate-200 bg-white object-contain p-2"
+                                />
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-800">
+                                        Current Logo
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {logoOptions.find(
+                                            (option) =>
+                                                option.value ===
+                                                data.logo_choice,
+                                        )?.label ?? "Selected logo"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                {logoOptions.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() =>
+                                            setData("logo_choice", option.value)
+                                        }
+                                        className={`rounded-lg border p-2 text-left text-xs transition ${data.logo_choice === option.value ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:border-slate-300"}`}
+                                    >
+                                        <img
+                                            src={option.preview}
+                                            alt={option.label}
+                                            className="mb-2 h-10 w-10 rounded-md border border-slate-200 bg-white object-contain p-1"
+                                        />
+                                        <span className="block font-medium text-slate-700">
+                                            {option.label}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Contact Info */}
                 <div className="border-b border-slate-200 pb-4">
                     <h2 className="mb-4 text-lg font-semibold text-slate-700">
@@ -461,29 +609,20 @@ export default function TenantForm({
                             <h2 className="text-sm font-semibold text-slate-800">
                                 Requested Tenant Admin Account
                             </h2>
-                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <input
-                                    type="checkbox"
-                                    checked={data.use_requested_admin_account}
-                                    onChange={(e) =>
-                                        setData(
-                                            "use_requested_admin_account",
-                                            e.target.checked,
-                                        )
-                                    }
-                                    className="h-4 w-4 rounded border-slate-300"
-                                />
-                                Assign tenant admin account now
-                            </label>
                         </div>
 
                         <p className="mb-3 text-xs text-slate-600">
-                            This follows the same fields as tenant signup requests. If the admin email already exists, that user will be linked to this barangay.
+                            If the admin email already exists, that user will be
+                            linked to this barangay as Barangay Admin. For new
+                            users, a secure password will be auto-generated and
+                            emailed.
                         </p>
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <label className={labelClass}>Admin Full Name *</label>
+                                <label className={labelClass}>
+                                    Admin Full Name *
+                                </label>
                                 <input
                                     className={inputClass}
                                     value={data.requested_admin_name}
@@ -493,8 +632,7 @@ export default function TenantForm({
                                             e.target.value,
                                         )
                                     }
-                                    required={data.use_requested_admin_account}
-                                    disabled={!data.use_requested_admin_account}
+                                    required
                                 />
                                 {errors.requested_admin_name && (
                                     <p className={errorClass}>
@@ -503,7 +641,9 @@ export default function TenantForm({
                                 )}
                             </div>
                             <div>
-                                <label className={labelClass}>Admin Email *</label>
+                                <label className={labelClass}>
+                                    Admin Email *
+                                </label>
                                 <input
                                     type="email"
                                     className={inputClass}
@@ -514,8 +654,7 @@ export default function TenantForm({
                                             e.target.value,
                                         )
                                     }
-                                    required={data.use_requested_admin_account}
-                                    disabled={!data.use_requested_admin_account}
+                                    required
                                 />
                                 {errors.requested_admin_email && (
                                     <p className={errorClass}>
@@ -524,7 +663,9 @@ export default function TenantForm({
                                 )}
                             </div>
                             <div>
-                                <label className={labelClass}>Admin Phone</label>
+                                <label className={labelClass}>
+                                    Admin Phone
+                                </label>
                                 <input
                                     className={inputClass}
                                     value={data.requested_admin_phone}
@@ -534,7 +675,6 @@ export default function TenantForm({
                                             e.target.value,
                                         )
                                     }
-                                    disabled={!data.use_requested_admin_account}
                                 />
                                 {errors.requested_admin_phone && (
                                     <p className={errorClass}>
@@ -543,68 +683,11 @@ export default function TenantForm({
                                 )}
                             </div>
                             <div>
-                                <label className={labelClass}>Admin Role *</label>
-                                <select
-                                    className={inputClass}
-                                    value={data.requested_admin_role}
-                                    onChange={(e) =>
-                                        setData(
-                                            "requested_admin_role",
-                                            e.target.value,
-                                        )
-                                    }
-                                    disabled={!data.use_requested_admin_account}
-                                >
-                                    <option value="purok_secretary">
-                                        Barangay Secretary
-                                    </option>
-                                    <option value="purok_leader">
-                                        Barangay Captain
-                                    </option>
-                                </select>
-                                {errors.requested_admin_role && (
-                                    <p className={errorClass}>
-                                        {errors.requested_admin_role}
-                                    </p>
-                                )}
-                            </div>
-                            <div>
-                                <label className={labelClass}>Admin Password *</label>
+                                <label className={labelClass}>Admin Role</label>
                                 <input
-                                    type="password"
                                     className={inputClass}
-                                    value={data.requested_admin_password}
-                                    onChange={(e) =>
-                                        setData(
-                                            "requested_admin_password",
-                                            e.target.value,
-                                        )
-                                    }
-                                    disabled={!data.use_requested_admin_account}
-                                />
-                                {errors.requested_admin_password && (
-                                    <p className={errorClass}>
-                                        {errors.requested_admin_password}
-                                    </p>
-                                )}
-                            </div>
-                            <div>
-                                <label className={labelClass}>
-                                    Confirm Admin Password *
-                                </label>
-                                <input
-                                    type="password"
-                                    className={inputClass}
-                                    value={
-                                        data.requested_admin_password_confirmation
-                                    }
-                                    onChange={(e) =>
-                                        setData(
-                                            "requested_admin_password_confirmation",
-                                            e.target.value,
-                                        )
-                                    }
-                                    disabled={!data.use_requested_admin_account}
+                                    value="Barangay Admin"
+                                    disabled
                                 />
                             </div>
                         </div>

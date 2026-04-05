@@ -18,6 +18,7 @@ class SuperActivityLogController extends Controller
             'search' => trim((string) $request->input('search', '')),
             'action' => trim((string) $request->input('action', '')),
             'tenant_id' => $request->filled('tenant_id') ? (string) $request->input('tenant_id') : '',
+            'per_page' => (string) $this->resolvePerPage($request),
         ];
 
         $emptyLogs = [
@@ -91,7 +92,7 @@ class SuperActivityLogController extends Controller
         }
 
         $logs = $query
-            ->paginate(30)
+            ->paginate((int) $filters['per_page'])
             ->withQueryString()
             ->through(function (CentralActivityLog $log) {
                 return [
@@ -127,5 +128,13 @@ class SuperActivityLogController extends Controller
             'setupCommand' => $setupCommand,
             'setupError' => null,
         ]);
+    }
+
+    private function resolvePerPage(Request $request): int
+    {
+        $allowed = [10, 25, 30, 50, 100];
+        $perPage = (int) $request->input('per_page', 30);
+
+        return in_array($perPage, $allowed, true) ? $perPage : 30;
     }
 }

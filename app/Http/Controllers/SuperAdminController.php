@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -108,7 +109,7 @@ class SuperAdminController extends Controller
                 'requested_admin_name' => $request->requested_admin_name,
                 'requested_admin_email' => $request->requested_admin_email,
                 'requested_admin_phone' => $request->requested_admin_phone,
-                'requested_admin_role' => $request->requested_admin_role,
+                'requested_admin_role' => User::ROLE_BARANGAY_ADMIN,
             ])
             ->values();
 
@@ -145,11 +146,12 @@ class SuperAdminController extends Controller
                 'integer',
                 Rule::exists('tenant_signup_requests', 'id')->where(fn($query) => $query->where('status', TenantSignupRequest::STATUS_PENDING)),
             ],
-            'use_requested_admin_account' => 'nullable|boolean',
-            'requested_admin_name' => 'nullable|string|max:255',
-            'requested_admin_email' => 'nullable|email|max:255',
+            'requested_admin_name' => 'required_without:signup_request_id|string|max:255',
+            'requested_admin_email' => 'required_without:signup_request_id|email|max:255',
             'requested_admin_phone' => 'nullable|string|max:50',
-            'requested_admin_role' => ['nullable', Rule::in(array_keys(User::tenantRoles()))],
+            'sidebar_label' => 'nullable|string|max:100',
+            'logo_choice' => ['required', 'string', Rule::in(['default', 'blue', 'green', 'amber', 'custom'])],
+            'logo_file' => ['required_if:logo_choice,custom', 'nullable', 'image', 'max:2048'],
         ]);
 
         $tenant = null;
@@ -171,6 +173,7 @@ class SuperAdminController extends Controller
                 'slug',
                 'subdomain',
                 'custom_domain',
+                'sidebar_label',
                 'barangay',
                 'address',
                 'contact_phone',
@@ -178,11 +181,27 @@ class SuperAdminController extends Controller
                 'is_active',
             ]);
 
+            $tenantPayload['sidebar_label'] = trim((string) ($tenantPayload['sidebar_label'] ?? '')) ?: null;
+
             $tenant = Tenant::create($tenantPayload);
             $tenantDatabases->provisionTenantDatabase($tenant);
 
-            $shouldUseRequestedAdmin = (bool) ($validated['use_requested_admin_account'] ?? true);
-            if ($signupRequest && $shouldUseRequestedAdmin && $signupRequest->requested_admin_email) {
+            if ($validated['logo_choice'] === 'custom') {
+                if ($request->hasFile('logo_file')) {
+                    $tenant->logo_path = $request->file('logo_file')->store('tenant-branding/' . $tenant->id, 'public');
+                    $tenant->save();
+                } else {
+                    throw new \RuntimeException('A custom logo file is required when selecting the custom logo option.');
+                }
+            } else {
+                $logoPath = $this->logoChoiceToPath($validated['logo_choice']);
+                if ($logoPath) {
+                    $tenant->logo_path = $logoPath;
+                    $tenant->save();
+                }
+            }
+
+            if ($signupRequest && $signupRequest->requested_admin_email) {
                 $adminUser = User::where('email', $signupRequest->requested_admin_email)->first();
                 $plainPassword = null;
 
@@ -205,7 +224,7 @@ class SuperAdminController extends Controller
                 }
 
                 $tenant->users()->syncWithoutDetaching([
-                    $adminUser->id => ['role' => $signupRequest->requested_admin_role ?: User::ROLE_PUROK_SECRETARY],
+                    $adminUser->id => ['role' => User::ROLE_BARANGAY_ADMIN],
                 ]);
 
                 $adminAssigned = true;
@@ -221,17 +240,16 @@ class SuperAdminController extends Controller
 
                 try {
                     Mail::to($signupRequest->requested_admin_email)->send(new TenantSignupApprovedMail($signupRequest->fresh(), $tenant));
-                    
+
                     if ($plainPassword) {
                         Mail::to($adminUser->email)->send(new TenantAdminAccountCreatedMail($tenant, $adminUser, $plainPassword));
                     }
                 } catch (Throwable $mailException) {
                     report($mailException);
                 }
-            } elseif ($shouldUseRequestedAdmin && !empty($validated['requested_admin_email'])) {
+            } elseif (!empty($validated['requested_admin_email'])) {
                 $requestedEmail = strtolower(trim((string) $validated['requested_admin_email']));
                 $requestedName = trim((string) ($validated['requested_admin_name'] ?? ''));
-                $requestedRole = $validated['requested_admin_role'] ?? User::ROLE_PUROK_SECRETARY;
                 $plainPassword = null;
 
                 if ($requestedName === '') {
@@ -259,7 +277,7 @@ class SuperAdminController extends Controller
                 }
 
                 $tenant->users()->syncWithoutDetaching([
-                    $adminUser->id => ['role' => $requestedRole],
+                    $adminUser->id => ['role' => User::ROLE_BARANGAY_ADMIN],
                 ]);
 
                 $adminAssigned = true;
@@ -272,6 +290,8 @@ class SuperAdminController extends Controller
                         report($mailException);
                     }
                 }
+            } else {
+                throw new \RuntimeException('Tenant creation requires a Barangay Admin account.');
             }
         } catch (Throwable $e) {
             ActivityLogService::record(
@@ -288,6 +308,9 @@ class SuperAdminController extends Controller
 
             if ($tenant?->exists) {
                 try {
+                    if ($tenant->logo_path) {
+                        Storage::disk('public')->delete($tenant->logo_path);
+                    }
                     $tenant->delete();
                 } catch (Throwable $cleanupException) {
                     report($cleanupException);
@@ -380,8 +403,13 @@ class SuperAdminController extends Controller
     public function editTenant(Tenant $tenant): Response
     {
         $plans = \App\Models\Plan::all();
+        $tenant = $tenant->load('plan');
+
         return Inertia::render('Super/TenantForm', [
-            'tenant' => $tenant->load('plan'),
+            'tenant' => array_merge($tenant->toArray(), [
+                'logo_url' => $tenant->logo_url,
+                'logo_choice' => $this->resolveLogoChoice($tenant->getRawOriginal('logo_path')),
+            ]),
             'plans' => $plans,
         ]);
     }
@@ -411,12 +439,40 @@ class SuperAdminController extends Controller
                 Rule::notIn([$reservedSubdomain, 'www']),
             ],
             'custom_domain' => ['nullable', 'string', 'max:255', Rule::unique('tenants', 'custom_domain')->ignore($tenant->id)],
+            'sidebar_label' => ['nullable', 'string', 'max:100'],
+            'logo_choice' => ['required', 'string', Rule::in(['default', 'blue', 'green', 'amber', 'custom'])],
+            'logo_file' => ['nullable', 'image', 'max:2048'],
             'barangay' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:500',
             'contact_phone' => 'nullable|string|max:50',
             'plan_id' => 'required|exists:plans,id',
             'is_active' => 'boolean',
         ]);
+
+        $currentLogoPath = $tenant->getRawOriginal('logo_path');
+        if ($validated['logo_choice'] === 'custom') {
+            if ($request->hasFile('logo_file')) {
+                if ($currentLogoPath && !str_starts_with($currentLogoPath, 'images/')) {
+                    Storage::disk('public')->delete($currentLogoPath);
+                }
+
+                $validated['logo_path'] = $request->file('logo_file')->store('tenant-branding/' . $tenant->id, 'public');
+            } elseif ($currentLogoPath && !str_starts_with((string) $currentLogoPath, 'images/')) {
+                $validated['logo_path'] = $currentLogoPath;
+            } else {
+                return back()->withErrors(['logo_file' => 'Please upload a custom logo file.']);
+            }
+        } else {
+            if ($currentLogoPath && !str_starts_with($currentLogoPath, 'images/')) {
+                Storage::disk('public')->delete($currentLogoPath);
+            }
+
+            $validated['logo_path'] = $this->logoChoiceToPath($validated['logo_choice']);
+        }
+
+        if (array_key_exists('sidebar_label', $validated)) {
+            $validated['sidebar_label'] = trim((string) $validated['sidebar_label']) ?: null;
+        }
 
         $tenant->update($validated);
 
@@ -431,6 +487,8 @@ class SuperAdminController extends Controller
                     'slug' => $tenant->slug,
                     'subdomain' => $tenant->subdomain,
                     'custom_domain' => $tenant->custom_domain,
+                    'sidebar_label' => $tenant->sidebar_label,
+                    'logo_path' => $tenant->logo_path,
                     'plan_id' => $tenant->plan_id,
                     'is_active' => $tenant->is_active,
                 ],
@@ -459,6 +517,27 @@ class SuperAdminController extends Controller
         );
 
         return back()->with('success', "Barangay {$tenant->name} has been {$status}.");
+    }
+
+    private function logoChoiceToPath(string $choice): ?string
+    {
+        return match ($choice) {
+            'blue' => 'images/logo-blue.svg',
+            'green' => 'images/logo-green.svg',
+            'amber' => 'images/logo-amber.svg',
+            default => null,
+        };
+    }
+
+    private function resolveLogoChoice(?string $logoPath): string
+    {
+        return match ($logoPath) {
+            'images/logo-blue.svg' => 'blue',
+            'images/logo-green.svg' => 'green',
+            'images/logo-amber.svg' => 'amber',
+            null, '' => 'default',
+            default => 'custom',
+        };
     }
 
     public function deleteTenant(Request $request, Tenant $tenant): RedirectResponse
@@ -554,6 +633,10 @@ class SuperAdminController extends Controller
             return back()->with('error', 'Super admin accounts cannot be assigned as tenant users.');
         }
 
+        if ($this->countTenantAdmins($tenant) < 1 && $validated['role'] !== User::ROLE_BARANGAY_ADMIN) {
+            return back()->with('error', 'Each tenant must always have at least one Barangay Admin. Assign Barangay Admin first.');
+        }
+
         $alreadyAssigned = $tenant->users()->where('users.id', $user->id)->exists();
 
         $tenant->users()->syncWithoutDetaching([
@@ -588,6 +671,10 @@ class SuperAdminController extends Controller
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['required', Rule::in(array_keys(User::tenantRoles()))],
         ]);
+
+        if ($this->countTenantAdmins($tenant) < 1 && $validated['role'] !== User::ROLE_BARANGAY_ADMIN) {
+            return back()->with('error', 'Each tenant must always have at least one Barangay Admin. Create the first user as Barangay Admin.');
+        }
 
         $user = User::create([
             'name' => $validated['name'],
@@ -625,6 +712,14 @@ class SuperAdminController extends Controller
             return back()->with('error', 'That user is not assigned to this barangay.');
         }
 
+        if (
+            $previousRole === User::ROLE_BARANGAY_ADMIN
+            && $validated['role'] !== User::ROLE_BARANGAY_ADMIN
+            && $this->countTenantAdmins($tenant) <= 1
+        ) {
+            return back()->with('error', 'Each tenant must always have at least one Barangay Admin. Assign another Barangay Admin before changing this role.');
+        }
+
         $tenant->users()->updateExistingPivot($user->id, ['role' => $validated['role']]);
 
         ActivityLogService::record(
@@ -645,9 +740,14 @@ class SuperAdminController extends Controller
 
     public function removeTenantUser(Request $request, Tenant $tenant, User $user): RedirectResponse
     {
-        $belongs = $tenant->users()->where('users.id', $user->id)->exists();
+        $pivot = $tenant->users()->where('users.id', $user->id)->first()?->pivot;
+        $belongs = (bool) $pivot;
         if (!$belongs) {
             return back()->with('warning', 'That user is already not assigned to this barangay.');
+        }
+
+        if ($pivot?->role === User::ROLE_BARANGAY_ADMIN && $this->countTenantAdmins($tenant) <= 1) {
+            return back()->with('error', 'Each tenant must always have at least one Barangay Admin. Assign another Barangay Admin before removing this user.');
         }
 
         $tenant->users()->detach($user->id);
@@ -662,5 +762,12 @@ class SuperAdminController extends Controller
         );
 
         return back()->with('success', "Removed {$user->name} from {$tenant->name}.");
+    }
+
+    private function countTenantAdmins(Tenant $tenant): int
+    {
+        return $tenant->users()
+            ->wherePivot('role', User::ROLE_BARANGAY_ADMIN)
+            ->count();
     }
 }

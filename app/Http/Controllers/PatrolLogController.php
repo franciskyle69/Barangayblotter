@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\PatrolLog;
-use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,25 +11,17 @@ use Inertia\Response;
 
 class PatrolLogController extends Controller
 {
-    private function assertAdminOrStaff(Request $request): void
+    private function assertCanManagePatrolLogs(Request $request): void
     {
         $tenant = app('current_tenant');
-        $role = $request->user()?->roleIn($tenant);
-        if (
-            !in_array($role, [
-                User::ROLE_PUROK_SECRETARY,
-                User::ROLE_PUROK_LEADER,
-                User::ROLE_COMMUNITY_WATCH,
-                User::ROLE_MEDIATOR,
-            ], true)
-        ) {
-            abort(403, 'Only barangay admin/staff can access patrol logs.');
+        if (!$request->user()?->hasTenantPermission($tenant, 'manage_patrol_logs')) {
+            abort(403, 'You do not have permission to access patrol logs.');
         }
     }
 
     public function index(Request $request): Response
     {
-        $this->assertAdminOrStaff($request);
+        $this->assertCanManagePatrolLogs($request);
         // Global scope handles tenant filtering
         $query = PatrolLog::with('user');
         if ($request->filled('date')) {
@@ -42,13 +33,13 @@ class PatrolLogController extends Controller
 
     public function create(): Response
     {
-        $this->assertAdminOrStaff(request());
+        $this->assertCanManagePatrolLogs(request());
         return Inertia::render('Patrol/Create');
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $this->assertAdminOrStaff($request);
+        $this->assertCanManagePatrolLogs($request);
         $tenant = app('current_tenant');
 
         $validated = $request->validate([
@@ -84,14 +75,14 @@ class PatrolLogController extends Controller
 
     public function edit(PatrolLog $patrol): Response|RedirectResponse
     {
-        $this->assertAdminOrStaff(request());
+        $this->assertCanManagePatrolLogs(request());
         // Global scope ensures only tenant's patrol logs are accessible
         return Inertia::render('Patrol/Edit', ['patrol' => $patrol]);
     }
 
     public function update(Request $request, PatrolLog $patrol): RedirectResponse
     {
-        $this->assertAdminOrStaff($request);
+        $this->assertCanManagePatrolLogs($request);
         $tenant = app('current_tenant');
 
         // Global scope ensures only tenant's patrol logs are accessible

@@ -197,6 +197,7 @@ return [
          * file. Using 'default' here means to use the `default` set in cache.php.
          */
 
-        'store' => 'default',
+        // Use file cache for RBAC to avoid tenant DB cache table requirements.
+        'store' => 'file',
     ],
 ];

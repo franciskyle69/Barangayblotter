@@ -12,7 +12,6 @@ export default function TenantSignup({ plans = [] }) {
         requested_admin_name: "",
         requested_admin_email: "",
         requested_admin_phone: "",
-        requested_admin_role: "purok_secretary",
         requested_admin_password: "",
         requested_admin_password_confirmation: "",
         requested_plan_id: plans[0]?.id ?? "",
@@ -153,6 +152,10 @@ export default function TenantSignup({ plans = [] }) {
                         <h2 className="mb-3 text-sm font-semibold text-slate-800">
                             Requested Tenant Admin Account
                         </h2>
+                        <p className="mb-3 text-xs text-slate-600">
+                            The first user for the tenant is automatically
+                            assigned as Barangay Admin.
+                        </p>
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
                                 <label className={labelClass}>
@@ -213,26 +216,12 @@ export default function TenantSignup({ plans = [] }) {
                                 />
                             </div>
                             <div>
-                                <label className={labelClass}>
-                                    Admin Role *
-                                </label>
-                                <select
+                                <label className={labelClass}>Role</label>
+                                <input
                                     className={inputClass}
-                                    value={data.requested_admin_role}
-                                    onChange={(e) =>
-                                        setData(
-                                            "requested_admin_role",
-                                            e.target.value,
-                                        )
-                                    }
-                                >
-                                    <option value="purok_secretary">
-                                        Barangay Secretary
-                                    </option>
-                                    <option value="purok_leader">
-                                        Barangay Captain
-                                    </option>
-                                </select>
+                                    value="Barangay Admin"
+                                    disabled
+                                />
                             </div>
                             <div>
                                 <label className={labelClass}>

@@ -89,8 +89,7 @@ export default function TenantSignupRequests({ requests = [], plans = [] }) {
                                         <span className="font-semibold">
                                             Admin Role:
                                         </span>{" "}
-                                        {req.requested_admin_role ||
-                                            "purok_secretary"}
+                                        Barangay Admin
                                     </p>
                                 </div>
 
