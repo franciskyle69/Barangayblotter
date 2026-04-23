@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Amber Seal Logo">
-  <rect width="128" height="128" rx="28" fill="#b45309"/>
-  <circle cx="64" cy="64" r="38" fill="#fef3c7" opacity="0.18"/>
-  <path d="M46 48h20c9 0 16 5 16 14 0 10-7 16-17 16H58v12H46V48zm12 20h6c4 0 6-2 6-5 0-3-2-5-6-5h-6v10z" fill="#ffffff"/>
-  <path d="M90 40l6 10 11 2-8 8 2 11-11-6-10 6 2-11-8-8 11-2 5-10z" fill="#fde68a"/>
-</svg>

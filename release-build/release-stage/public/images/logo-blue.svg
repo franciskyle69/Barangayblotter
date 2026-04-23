@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Blue Seal Logo">
-  <rect width="128" height="128" rx="28" fill="#1e40af"/>
-  <circle cx="64" cy="64" r="38" fill="#eff6ff" opacity="0.16"/>
-  <path d="M40 76V52h16c8 0 14 5 14 12s-6 12-14 12H40zm12-8h4c4 0 6-2 6-4s-2-4-6-4h-4v8z" fill="#ffffff"/>
-  <circle cx="89" cy="39" r="7" fill="#60a5fa"/>
-</svg>

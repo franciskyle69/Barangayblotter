@@ -99,9 +99,18 @@ return [
     /*
      * When set to true, the method for checking permissions will be registered on the gate.
      * Set this to false if you want to implement custom logic for checking permissions.
+     *
+     * This app does NOT use Spatie's authorization layer at runtime. All
+     * permission checks go through `App\Models\User::hasTenantPermission()`,
+     * which reads a static matrix in code (see `User::tenantPermissionMatrix`).
+     * Spatie's tables exist for the super-admin UI at /super/roles-permissions
+     * only — they're CRUD, never consulted by `$user->can()` / `Gate::allows()`.
+     *
+     * Turning this off prevents Spatie from hooking into `Gate::before`, which
+     * removes a hot-path DB lookup + cache hit on every permission check.
      */
 
-    'register_permission_check_method' => true,
+    'register_permission_check_method' => false,
 
     /*
      * When set to true, Laravel\Octane\Events\OperationTerminated event listener will be registered
@@ -197,7 +206,23 @@ return [
          * file. Using 'default' here means to use the `default` set in cache.php.
          */
 
-        // Use file cache for RBAC to avoid tenant DB cache table requirements.
-        'store' => 'file',
+        /*
+         * Use the in-memory `array` store. Rationale:
+         *   - The app doesn't consult Spatie's permission cache at runtime
+         *     (see `register_permission_check_method` above), so the cache
+         *     never needs to survive across requests.
+         *   - The `file` driver causes boot-time stalls on Windows when the
+         *     cache file is locked by a concurrent request — we observed
+         *     30-second hangs on /super/settings traced directly to
+         *     PermissionRegistrar::initializeCache() → file lock contention.
+         *   - The `database` driver would force cache traffic to follow the
+         *     currently active connection, which flips between central and
+         *     tenant depending on middleware — leading to "cache table not
+         *     found" errors on tenant DBs.
+         *
+         * `array` is purely in-process memory, has zero lock contention, and
+         * costs nothing since we don't use Spatie's authorization layer.
+         */
+        'store' => 'array',
     ],
 ];

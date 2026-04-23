@@ -2,64 +2,35 @@
 
 namespace App\Models\Traits;
 
-use App\Models\Tenant;
-
+/**
+ * Routes Eloquent models to the `tenant` database connection when a tenant
+ * context is active.
+ *
+ * This trait is DELIBERATELY minimal and side-effect-free:
+ *   - It does NOT read the session.
+ *   - It does NOT inspect the request (host resolution).
+ *   - It does NOT mutate config/database.connections.tenant.
+ *   - It does NOT lazily instantiate a Tenant from an ID.
+ *
+ * All of those responsibilities now live in `TenantDatabaseManager` and the
+ * middleware pipeline (`ResolveTenantFromDomain` → `SetTenantFromSession`
+ * → `SwitchTenantDatabase`). By the time a tenant-scoped model is queried,
+ * the container binding `current_tenant` must already be set AND the
+ * `tenant` connection must already be configured.
+ *
+ * Why this matters: the old version of this trait mutated config on every
+ * call to getConnectionName(), which happens hundreds of times per request.
+ * It also did session/request lookups from inside Eloquent, which caused
+ * subtle bugs in queue workers and CLI contexts where neither exists.
+ */
 trait UsesTenantConnection
 {
     public function getConnectionName(): ?string
     {
-        $databaseName = $this->resolveTenantDatabaseName();
-
-        if ($databaseName) {
-            $centralConnection = config('tenancy.central_connection', 'central');
-            $baseConfig = config("database.connections.{$centralConnection}");
-
-            if (is_array($baseConfig)) {
-                $driver = $baseConfig['driver'] ?? null;
-
-                if ($driver === 'sqlite') {
-                    $filename = str_ends_with($databaseName, '.sqlite') ? $databaseName : $databaseName . '.sqlite';
-                    $tenantDatabase = database_path('tenants/' . $filename);
-                } else {
-                    $tenantDatabase = $databaseName;
-                }
-
-                config([
-                    'database.connections.tenant' => array_merge($baseConfig, [
-                        'database' => $tenantDatabase,
-                    ])
-                ]);
-
-                return 'tenant';
-            }
+        if (app()->bound('current_tenant')) {
+            return 'tenant';
         }
 
         return $this->connection;
-    }
-
-    private function resolveTenantDatabaseName(): ?string
-    {
-        if (app()->bound('current_tenant')) {
-            return app('current_tenant')->database_name ?? null;
-        }
-
-        if (app()->bound('session') && session()->has('current_tenant_id')) {
-            $tenant = Tenant::find((int) session('current_tenant_id'));
-            if ($tenant) {
-                app()->instance('current_tenant', $tenant);
-                return $tenant->database_name;
-            }
-        }
-
-        if (app()->bound('request')) {
-            $host = request()->getHost();
-            $tenant = Tenant::resolveFromHost($host);
-            if ($tenant) {
-                app()->instance('current_tenant', $tenant);
-                return $tenant->database_name;
-            }
-        }
-
-        return null;
     }
 }

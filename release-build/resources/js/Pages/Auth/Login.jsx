@@ -13,8 +13,8 @@ export default function Login() {
     const logoSrc = logo_url || "/images/logo.png";
     const tenantLabel = current_tenant?.slug || current_tenant?.name;
     const title = tenantLabel
-        ? `Barangay ${tenantLabel} blot`
-        : "Bukidnon International INC";
+        ? `Office of the barangay ${tenantLabel} blottter`
+        : "International Websystem of the universe and in the milky way galaxy";
     const loginBackgroundUrl = current_tenant?.login_background_url || null;
     const loginOverlayOpacity =
         current_tenant?.login_background_opacity != null

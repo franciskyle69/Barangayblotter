@@ -21,3 +21,8 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Local release packaging (not used at runtime; safe to delete and rebuild)
+/release-build/
+/release-stage/
+/release.zip

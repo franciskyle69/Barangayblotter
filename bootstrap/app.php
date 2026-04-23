@@ -21,6 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.db' => \App\Http\Middleware\SwitchTenantDatabase::class,
             'tenant.role' => \App\Http\Middleware\EnsureTenantRole::class,
             'tenant.permission' => \App\Http\Middleware\EnsureTenantPermission::class,
+            // Enforces that an authenticated session is bound to the
+            // tenant it was issued for (see middleware docblock). Apply
+            // this AFTER tenant resolution (`tenant`/`tenant.db`) so the
+            // `current_tenant` binding and tenant DB connection are
+            // available when we cross-check.
+            'tenant.session.binding' => \App\Http\Middleware\VerifyTenantSessionBinding::class,
             'super_admin' => \App\Http\Middleware\SuperAdminOnly::class,
             'password.change' => \App\Http\Middleware\EnforcePasswordChange::class,
         ]);

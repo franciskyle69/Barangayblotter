@@ -53,7 +53,13 @@ class LoginController extends Controller
                     ])->onlyInput('email');
                 }
 
-                session(['current_tenant_id' => $tenant->id]);
+                session([
+                    'current_tenant_id' => $tenant->id,
+                    // Bind the authenticated session to this tenant so the
+                    // VerifyTenantSessionBinding middleware can detect and
+                    // reject cross-tenant cookie replay attempts.
+                    'auth_tenant_id' => $tenant->id,
+                ]);
 
                 ActivityLogService::record(
                     request: $request,
@@ -86,6 +92,11 @@ class LoginController extends Controller
                     'email' => 'Tenant users must sign in from their barangay domain.',
                 ])->onlyInput('email');
             }
+
+            // Super admins carry a null tenant binding — their sessions
+            // are valid only on the central domain. VerifyTenantSessionBinding
+            // will reject the session if a tenant ever resolves for it.
+            session(['auth_tenant_id' => null]);
 
             ActivityLogService::record(
                 request: $request,

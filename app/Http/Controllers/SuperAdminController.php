@@ -322,8 +322,22 @@ class SuperAdminController extends Controller
             }
 
             if ($createdUser?->exists) {
+                // The user was created inside runInTenantContext(), so
+                // its records live on the TENANT connection. Without
+                // re-entering that context, `$createdUser->delete()`
+                // would (a) fall back to the central connection and
+                // potentially delete a central user with the same
+                // numeric id, or (b) silently no-op. Always clean up in
+                // the same context where the record was created.
                 try {
-                    $createdUser->delete();
+                    if ($tenant?->exists && $tenant->database_name) {
+                        app(TenantDatabaseManager::class)->runInTenantContext(
+                            $tenant,
+                            function () use ($createdUser) {
+                                $createdUser->delete();
+                            }
+                        );
+                    }
                 } catch (Throwable $cleanupException) {
                     report($cleanupException);
                 }
@@ -671,33 +685,57 @@ class SuperAdminController extends Controller
 
         $tenantName = $tenant->name;
         $tenantId = $tenant->id;
+        $databaseName = $tenant->database_name;
+        $logoPath = $tenant->getRawOriginal('logo_path');
 
         try {
-            // Delete all related data in a transaction
-            \Illuminate\Support\Facades\DB::transaction(function () use ($tenant) {
-                // Delete related data (order matters for foreign keys)
-                $tenant->incidents()->delete();
-                $tenant->mediations()->delete();
-                $tenant->patrolLogs()->delete();
-                $tenant->blotterRequests()->delete();
-                CentralIncidentSummary::query()->where('tenant_id', $tenant->id)->delete();
-
-                // Delete the tenant
+            // Central-row deletion. Previously this also called
+            // `$tenant->incidents()->delete()` etc, but those relations
+            // resolve `Incident` / `Mediation` models which carry the
+            // BelongsToTenant global scope — WITHOUT a current tenant
+            // binding those queries become `WHERE 1 = 0` and silently
+            // delete zero rows. The canonical fix is: blow away the
+            // tenant's physical database (handles all per-tenant tables
+            // in one shot) and then drop the central bookkeeping row.
+            DB::transaction(function () use ($tenant, $tenantId) {
+                CentralIncidentSummary::query()->where('tenant_id', $tenantId)->delete();
                 $tenant->delete();
             });
+
+            // Drop the physical tenant database OUTSIDE the central
+            // transaction. MySQL/Postgres DROP DATABASE are DDL, not
+            // transactional, and should only happen after the central
+            // commit has already freed the row.
+            if (is_string($databaseName) && $databaseName !== '') {
+                app(TenantDatabaseManager::class)->dropTenantDatabase($databaseName);
+            }
+
+            if ($logoPath && !str_starts_with((string) $logoPath, 'images/')) {
+                // Best effort — missing files are not fatal.
+                try {
+                    Storage::disk('public')->delete($logoPath);
+                } catch (Throwable $storageException) {
+                    report($storageException);
+                }
+            }
 
             ActivityLogService::record(
                 request: $request,
                 action: 'super.tenant.delete',
                 description: "Deleted barangay tenant {$tenantName}.",
-                metadata: ['tenant_name' => $tenantName],
+                metadata: [
+                    'tenant_name' => $tenantName,
+                    'database_name' => $databaseName,
+                ],
                 targetType: 'tenant',
                 targetId: $tenantId,
                 tenantId: $tenantId,
             );
 
-            return redirect()->route('super.tenants')->with('success', "Barangay '{$tenantName}' and all its data have been permanently deleted.");
+            return redirect()->route('super.tenants')->with('success', "Barangay '{$tenantName}' and all its data (including its dedicated database) have been permanently deleted.");
         } catch (\Exception $e) {
+            report($e);
+
             ActivityLogService::record(
                 request: $request,
                 action: 'super.tenant.delete_failed',
@@ -711,7 +749,15 @@ class SuperAdminController extends Controller
                 tenantId: $tenantId,
             );
 
-            return back()->with('error', 'Failed to delete barangay: ' . $e->getMessage());
+            // Redact in production — mirrors SuperBackupController's
+            // userFacingError. Leaking SQL/path details to an attacker
+            // with a compromised super-admin account aids lateral
+            // movement.
+            $friendly = app()->environment('production')
+                ? 'Failed to delete barangay. Please check the logs.'
+                : 'Failed to delete barangay: ' . $e->getMessage();
+
+            return back()->with('error', $friendly);
         }
     }
 
@@ -870,58 +916,96 @@ class SuperAdminController extends Controller
         return back()->with('success', $result['success']);
     }
 
-    public function updateTenantUserRole(Request $request, Tenant $tenant, User $user): RedirectResponse
+    /**
+     * Super admin updates a tenant user's role.
+     *
+     * IMPORTANT: the `{user}` URL segment is NOT resolved via route-
+     * model binding for this method. Super-admin routes don't run the
+     * tenant-resolution middleware, so a typed-hinted `User $user`
+     * would resolve against the CENTRAL connection and either 404 or
+     * mutate the wrong record (same id, different DB). We accept the
+     * raw id and look it up inside runInTenantContext.
+     */
+    public function updateTenantUserRole(Request $request, Tenant $tenant, int $user): RedirectResponse
     {
         $validated = $request->validate([
             'role' => ['required', Rule::in(array_keys(User::tenantRoles()))],
         ]);
 
-        $previousRole = $user->role;
+        $result = app(TenantDatabaseManager::class)->runInTenantContext($tenant, function () use ($tenant, $user, $validated, $request) {
+            $targetUser = User::query()->find($user);
+            if (!$targetUser) {
+                return ['error' => 'That user no longer exists in this barangay.'];
+            }
 
-        if (
-            $previousRole === User::ROLE_BARANGAY_ADMIN
-            && $validated['role'] !== User::ROLE_BARANGAY_ADMIN
-            && $this->countTenantAdmins($tenant) <= 1
-        ) {
-            return back()->with('error', 'Each tenant must always have at least one Barangay Admin. Assign another Barangay Admin before changing this role.');
+            $previousRole = $targetUser->role;
+
+            if (
+                $previousRole === User::ROLE_BARANGAY_ADMIN
+                && $validated['role'] !== User::ROLE_BARANGAY_ADMIN
+                && $this->countTenantAdmins($tenant) <= 1
+            ) {
+                return ['error' => 'Each tenant must always have at least one Barangay Admin. Assign another Barangay Admin before changing this role.'];
+            }
+
+            $targetUser->update(['role' => $validated['role']]);
+
+            ActivityLogService::record(
+                request: $request,
+                action: 'super.tenant_user.role_update',
+                description: "Updated role for {$targetUser->name} in {$tenant->name}.",
+                metadata: [
+                    'before_role' => $previousRole,
+                    'after_role' => $validated['role'],
+                ],
+                targetType: 'user',
+                targetId: $targetUser->id,
+                tenantId: $tenant->id,
+            );
+
+            return ['success' => "Updated role for {$targetUser->name}."];
+        });
+
+        if (isset($result['error'])) {
+            return back()->with('error', $result['error']);
         }
-
-        $user->update(['role' => $validated['role']]);
-
-        ActivityLogService::record(
-            request: $request,
-            action: 'super.tenant_user.role_update',
-            description: "Updated role for {$user->name} in {$tenant->name}.",
-            metadata: [
-                'before_role' => $previousRole,
-                'after_role' => $validated['role'],
-            ],
-            targetType: 'user',
-            targetId: $user->id,
-            tenantId: $tenant->id,
-        );
-
-        return back()->with('success', "Updated role for {$user->name}.");
+        return back()->with('success', $result['success']);
     }
 
-    public function removeTenantUser(Request $request, Tenant $tenant, User $user): RedirectResponse
+    /**
+     * Super admin removes a tenant user. See updateTenantUserRole for
+     * why `{user}` is not resolved via route-model binding here.
+     */
+    public function removeTenantUser(Request $request, Tenant $tenant, int $user): RedirectResponse
     {
-        if ($user->role === User::ROLE_BARANGAY_ADMIN && $this->countTenantAdmins($tenant) <= 1) {
-            return back()->with('error', 'Each tenant must always have at least one Barangay Admin. Assign another Barangay Admin before removing this user.');
+        $result = app(TenantDatabaseManager::class)->runInTenantContext($tenant, function () use ($tenant, $user, $request) {
+            $targetUser = User::query()->find($user);
+            if (!$targetUser) {
+                return ['error' => 'That user no longer exists in this barangay.'];
+            }
+
+            if ($targetUser->role === User::ROLE_BARANGAY_ADMIN && $this->countTenantAdmins($tenant) <= 1) {
+                return ['error' => 'Each tenant must always have at least one Barangay Admin. Assign another Barangay Admin before removing this user.'];
+            }
+
+            $targetUser->delete();
+
+            ActivityLogService::record(
+                request: $request,
+                action: 'super.tenant_user.remove',
+                description: "Removed {$targetUser->name} from {$tenant->name}.",
+                targetType: 'user',
+                targetId: $targetUser->id,
+                tenantId: $tenant->id,
+            );
+
+            return ['success' => "Removed {$targetUser->name} from {$tenant->name}."];
+        });
+
+        if (isset($result['error'])) {
+            return back()->with('error', $result['error']);
         }
-
-        $user->delete();
-
-        ActivityLogService::record(
-            request: $request,
-            action: 'super.tenant_user.remove',
-            description: "Removed {$user->name} from {$tenant->name}.",
-            targetType: 'user',
-            targetId: $user->id,
-            tenantId: $tenant->id,
-        );
-
-        return back()->with('success', "Removed {$user->name} from {$tenant->name}.");
+        return back()->with('success', $result['success']);
     }
 
     private function countTenantAdmins(Tenant $tenant): int

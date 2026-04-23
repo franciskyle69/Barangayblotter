@@ -1,11 +1,12 @@
 import { Link, useForm } from "@inertiajs/react";
 import TenantLayout from "../Layouts/TenantLayout";
+import FormErrorSummary, { FieldError } from "../../Components/FormErrorSummary";
 
 export default function BlotterRequestsCreate({
     incidents,
     initialIncidentId,
 }) {
-    const { data, setData, post, processing } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         incident_id: initialIncidentId?.toString() ?? "",
         purpose: "",
     });
@@ -21,7 +22,10 @@ export default function BlotterRequestsCreate({
                     post("/blotter-requests");
                 }}
                 className="max-w-md space-y-4 rounded-lg bg-white p-6 shadow"
+                noValidate
             >
+                <FormErrorSummary errors={errors} />
+
                 <div>
                     <label
                         htmlFor="incident_id"
@@ -33,7 +37,7 @@ export default function BlotterRequestsCreate({
                         id="incident_id"
                         value={data.incident_id}
                         onChange={(e) => setData("incident_id", e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                         required
                     >
                         <option value="">Select incident</option>
@@ -50,6 +54,7 @@ export default function BlotterRequestsCreate({
                             </option>
                         ))}
                     </select>
+                    <FieldError message={errors.incident_id} />
                 </div>
                 <div>
                     <label
@@ -63,17 +68,18 @@ export default function BlotterRequestsCreate({
                         type="text"
                         value={data.purpose}
                         onChange={(e) => setData("purpose", e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                         placeholder="e.g. Legal requirement, Personal record"
                     />
+                    <FieldError message={errors.purpose} />
                 </div>
                 <div className="flex gap-2">
                     <button
                         type="submit"
                         disabled={processing}
-                        className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-70"
+                        className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        Submit request
+                        {processing ? "Submitting…" : "Submit request"}
                     </button>
                     <Link
                         href="/blotter-requests"

@@ -84,6 +84,17 @@ const Icon = ({ name, className = "size-4" }) => {
                     <path d="M9.5 12.5l2 2 3.5-4" />
                 </svg>
             );
+        case "support":
+            return (
+                <svg {...common}>
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M4.9 4.9l3.5 3.5" />
+                    <path d="M15.6 15.6l3.5 3.5" />
+                    <path d="M4.9 19.1l3.5-3.5" />
+                    <path d="M15.6 8.4l3.5-3.5" />
+                </svg>
+            );
         case "settings":
             return (
                 <svg {...common}>
@@ -175,6 +186,16 @@ const navItems = (tenant, permissions = {}) => {
         });
     }
 
+    // Support is always available to every authenticated tenant user —
+    // it is the one-way channel for raising complaints / help requests
+    // with the central team, so we do NOT gate it behind a permission.
+    items.push({
+        label: "Support",
+        mobileLabel: "Support",
+        href: "/support",
+        icon: "support",
+    });
+
     if (permissions.manage_account_settings) {
         items.push({
             label: "Settings",
@@ -224,6 +245,7 @@ export default function TenantLayout({ children }) {
         current_tenant,
         tenant_permissions,
         app_name,
+        app_version,
         flash,
         logo_url,
     } = page.props;
@@ -407,6 +429,30 @@ export default function TenantLayout({ children }) {
                         </div>
                     ))}
                 </nav>
+                {app_version && (
+                    <div
+                        className={`shrink-0 border-t border-white/5 ${
+                            sidebarCollapsed ? "px-2 py-3" : "px-6 py-3"
+                        }`}
+                    >
+                        <span
+                            className={`inline-flex items-center gap-1.5 rounded-full bg-white/5 font-medium text-slate-400 ${
+                                sidebarCollapsed
+                                    ? "px-1.5 py-1 text-[10px]"
+                                    : "px-2.5 py-1 text-xs"
+                            }`}
+                            title={`Running ${app_version}`}
+                        >
+                            <span
+                                className="size-1.5 shrink-0 rounded-full bg-emerald-400/80"
+                                aria-hidden
+                            />
+                            {sidebarCollapsed
+                                ? app_version.replace(/^v/, "v")
+                                : app_version}
+                        </span>
+                    </div>
+                )}
             </aside>
 
             <div className={`flex flex-1 flex-col ${sidebarWidthClass}`}>

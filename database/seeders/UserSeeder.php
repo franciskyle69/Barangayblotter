@@ -13,14 +13,18 @@ class UserSeeder extends Seeder
     {
         User::where('email', 'admin')->update(['email' => 'admin@admin']);
 
-        $admin = User::firstOrCreate(
+        // `is_super_admin` is intentionally NOT mass-assignable on the
+        // User model (privilege-escalation hardening), so `firstOrCreate`
+        // alone cannot set it. Seed via an explicit forceFill on the
+        // created/fetched model.
+        $admin = User::firstOrNew(
             ['email' => 'admin@admin'],
             [
                 'name' => 'Admin',
                 'password' => Hash::make('admin'),
-                'is_super_admin' => true,
             ]
         );
+        $admin->forceFill(['is_super_admin' => true])->save();
 
         // Attach admin to all barangays so they can access and report incidents
         foreach (Tenant::all() as $tenant) {

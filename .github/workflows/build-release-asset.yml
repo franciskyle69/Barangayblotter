@@ -1,0 +1,105 @@
+name: build-release-asset
+
+# Builds release.zip and attaches it to a GitHub Release.
+#
+# Triggers:
+#   - release: published        -> fires automatically right after release-please
+#                                  publishes a new release.
+#   - workflow_dispatch         -> lets the central app (or a human) re-run a
+#                                  build and upload for a specific tag.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v1.4.0). Required for manual runs."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve target tag
+        id: target
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.tag }}
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install PHP dependencies (prod)
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Create release.zip
+        run: |
+          set -euo pipefail
+          STAGE="release-stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          # rsync the repo into the staging dir excluding anything the updater
+          # must NOT overwrite on a tenant's server (matches SystemUpdateService
+          # overwriteApplication() excludes), plus build-only junk.
+          rsync -a \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude ".env" \
+            --exclude ".env.*" \
+            --exclude "node_modules" \
+            --exclude "release-stage" \
+            --exclude "release-build" \
+            --exclude "release.zip" \
+            --exclude "storage/app/*" \
+            --exclude "storage/framework/cache/*" \
+            --exclude "storage/framework/sessions/*" \
+            --exclude "storage/framework/views/*" \
+            --exclude "storage/logs/*" \
+            --exclude "tests" \
+            --exclude "phpunit.xml" \
+            ./ "$STAGE/"
+
+          # Preserve .gitignore shells inside storage/ so Laravel keeps working.
+          find "$STAGE/storage" -type d -exec sh -c 'test -f "$1/.gitignore" || true' _ {} \;
+
+          cd "$STAGE"
+          zip -qr ../release.zip .
+          cd ..
+          ls -lh release.zip
+
+      - name: Upload release.zip to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          gh release upload "$TAG" release.zip --clobber --repo "$GITHUB_REPOSITORY"

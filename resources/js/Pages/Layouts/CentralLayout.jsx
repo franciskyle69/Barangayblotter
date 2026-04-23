@@ -79,6 +79,25 @@ const Icon = ({ name, className = "size-4" }) => {
                     <path d="M16 21v-3" />
                 </svg>
             );
+        case "release":
+            return (
+                <svg {...common}>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05" />
+                    <path d="M12 22.08V12" />
+                </svg>
+            );
+        case "support":
+            return (
+                <svg {...common}>
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M4.9 4.9l3.5 3.5" />
+                    <path d="M15.6 15.6l3.5 3.5" />
+                    <path d="M4.9 19.1l3.5-3.5" />
+                    <path d="M15.6 8.4l3.5-3.5" />
+                </svg>
+            );
         default:
             return null;
     }
@@ -116,6 +135,12 @@ const centralNavItems = [
         icon: "requests",
     },
     {
+        label: "Support",
+        mobileLabel: "Support",
+        href: "/super/support",
+        icon: "support",
+    },
+    {
         label: "Activity Logs",
         mobileLabel: "Logs",
         href: "/super/activity-logs",
@@ -127,11 +152,17 @@ const centralNavItems = [
         href: "/super/backup-restore",
         icon: "backup",
     },
+    {
+        label: "Releases",
+        mobileLabel: "Releases",
+        href: "/super/releases",
+        icon: "release",
+    },
 ];
 
 export default function CentralLayout({ children }) {
     const page = usePage();
-    const { auth, app_name, flash, logo_url } = page.props;
+    const { auth, app_name, app_version, flash, logo_url } = page.props;
     const lastFlashRef = useRef({ success: null, error: null, warning: null });
     const user = auth?.user;
     const mustChangePassword = Boolean(user?.must_change_password);
@@ -307,6 +338,28 @@ export default function CentralLayout({ children }) {
                         </div>
                     ))}
                 </nav>
+                {app_version && (
+                    <div
+                        className={`shrink-0 border-t border-white/5 ${
+                            sidebarCollapsed ? "px-2 py-3" : "px-6 py-3"
+                        }`}
+                    >
+                        <span
+                            className={`inline-flex items-center gap-1.5 rounded-full bg-white/5 font-medium text-slate-400 ${
+                                sidebarCollapsed
+                                    ? "px-1.5 py-1 text-[10px]"
+                                    : "px-2.5 py-1 text-xs"
+                            }`}
+                            title={`Running ${app_version}`}
+                        >
+                            <span
+                                className="size-1.5 shrink-0 rounded-full bg-cyan-400/80"
+                                aria-hidden
+                            />
+                            {app_version}
+                        </span>
+                    </div>
+                )}
             </aside>
 
             <div className={`flex flex-1 flex-col ${sidebarWidthClass}`}>

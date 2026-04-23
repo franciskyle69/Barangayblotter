@@ -1,8 +1,9 @@
 import { Link, useForm } from '@inertiajs/react';
 import TenantLayout from '../Layouts/TenantLayout';
+import FormErrorSummary from '../../Components/FormErrorSummary';
 
 export default function PatrolCreate() {
-  const { data, setData, post, processing } = useForm({
+  const { data, setData, post, processing, errors } = useForm({
     patrol_date: new Date().toISOString().slice(0, 10),
     start_time: '',
     end_time: '',
@@ -16,7 +17,8 @@ export default function PatrolCreate() {
   return (
     <TenantLayout>
       <h1 className="mb-6 text-2xl font-bold text-slate-800">Log patrol activity</h1>
-      <form onSubmit={(e) => { e.preventDefault(); post('/patrol'); }} className="max-w-2xl space-y-4 rounded-lg bg-white p-6 shadow">
+      <form onSubmit={(e) => { e.preventDefault(); post('/patrol'); }} className="max-w-2xl space-y-4 rounded-lg bg-white p-6 shadow" noValidate>
+        <FormErrorSummary errors={errors} />
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="patrol_date" className="mb-1 block text-sm font-medium text-slate-700">Date</label>
@@ -56,7 +58,7 @@ export default function PatrolCreate() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button type="submit" disabled={processing} className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:opacity-70">Save</button>
+          <button type="submit" disabled={processing} className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">{processing ? 'Saving…' : 'Save'}</button>
           <Link href="/patrol" className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-300">Cancel</Link>
         </div>
       </form>

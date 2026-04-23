@@ -109,13 +109,26 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Mass-assignable attributes.
+     *
+     * `is_super_admin` is DELIBERATELY excluded — setting it must go
+     * through `forceFill()` in a trusted seeder or admin tool. This
+     * closes a privilege-escalation hole where a future refactor could
+     * accidentally trust request payloads (e.g. `User::create($request->all())`)
+     * and let a tenant user flip themselves to super admin.
+     *
+     * `role` remains mass-assignable because every controller that sets
+     * it validates it against `Rule::in(array_keys(User::tenantRoles()))`.
+     * The allowlist is type-safe by construction; an invalid role would
+     * fail validation before reaching the model.
+     */
     protected $fillable = [
         'name',
         'email',
         'phone',
         'password',
         'role',
-        'is_super_admin',
         'must_change_password',
     ];
 
@@ -171,8 +184,12 @@ class User extends Authenticatable
         }
 
         $permissionList = $this->normalizeTenantPermissions($permissions);
+        // Fail CLOSED on an empty permission list. Previous version
+        // returned `true` — that is the opposite of what an authorization
+        // check should do: if the caller forgot to pass a permission,
+        // we must assume they meant "deny" rather than "allow anything".
         if ($permissionList === []) {
-            return true;
+            return false;
         }
 
         $grantedPermissions = $this->grantedTenantPermissionsForRole($tenant, $roleName);

@@ -1,26 +1,75 @@
-import { Link, useForm, router } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
+import { useMemo, useState } from "react";
 import CentralLayout from "../Layouts/CentralLayout";
 
+/**
+ * Super-admin review screen for tenant (barangay) signup requests.
+ *
+ * Previous bug: the per-row plan override dropdown wrote to a shared
+ * `approveForm.plan_id` which was then immediately overwritten in
+ * `approve()` with the request's originally-requested plan. That meant
+ * super admins could change the plan in the UI but the backend was
+ * always provisioned with the request's default. We now keep per-row
+ * draft state (plan_id, review_notes) in a single `drafts` map so the
+ * submitted value is exactly what the admin saw.
+ */
 export default function TenantSignupRequests({ requests = [], plans = [] }) {
-    const approveForm = useForm({ plan_id: "", review_notes: "" });
-    const rejectForm = useForm({ review_notes: "" });
+    const fallbackPlanId = plans[0]?.id ?? "";
+
+    // drafts[requestId] = { plan_id, review_notes }
+    const initialDrafts = useMemo(() => {
+        const map = {};
+        for (const req of requests) {
+            if (req.status !== "pending") continue;
+            map[req.id] = {
+                plan_id: req.requested_plan_id || fallbackPlanId || "",
+                review_notes: "",
+            };
+        }
+        return map;
+    }, [requests, fallbackPlanId]);
+
+    const [drafts, setDrafts] = useState(initialDrafts);
+    const [processingId, setProcessingId] = useState(null);
 
     const pending = requests.filter((r) => r.status === "pending");
     const processed = requests.filter((r) => r.status !== "pending");
 
-    const approve = (id, requestedPlanId) => {
-        approveForm.setData("plan_id", requestedPlanId || plans[0]?.id || "");
-        router.post(`/super/tenant-signup-requests/${id}/approve`, {
-            plan_id:
-                approveForm.data.plan_id || requestedPlanId || plans[0]?.id,
-            review_notes: approveForm.data.review_notes,
-        });
+    const updateDraft = (id, patch) =>
+        setDrafts((prev) => ({
+            ...prev,
+            [id]: { ...(prev[id] ?? {}), ...patch },
+        }));
+
+    const approve = (id) => {
+        if (processingId) return;
+        const draft = drafts[id] ?? {};
+        setProcessingId(id);
+        router.post(
+            `/super/tenant-signup-requests/${id}/approve`,
+            {
+                plan_id: draft.plan_id || fallbackPlanId,
+                review_notes: draft.review_notes ?? "",
+            },
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingId(null),
+            },
+        );
     };
 
     const reject = (id) => {
-        router.post(`/super/tenant-signup-requests/${id}/reject`, {
-            review_notes: rejectForm.data.review_notes,
-        });
+        if (processingId) return;
+        const draft = drafts[id] ?? {};
+        setProcessingId(id);
+        router.post(
+            `/super/tenant-signup-requests/${id}/reject`,
+            { review_notes: draft.review_notes ?? "" },
+            {
+                preserveScroll: true,
+                onFinish: () => setProcessingId(null),
+            },
+        );
     };
 
     return (
@@ -31,7 +80,7 @@ export default function TenantSignupRequests({ requests = [], plans = [] }) {
                 </h1>
             </div>
 
-            <div className="rounded-lg bg-white p-5 shadow-sm">
+            <section className="rounded-lg bg-white p-5 shadow-sm">
                 <h2 className="mb-3 text-lg font-semibold text-slate-800">
                     Pending Requests ({pending.length})
                 </h2>
@@ -41,129 +90,107 @@ export default function TenantSignupRequests({ requests = [], plans = [] }) {
                     </p>
                 ) : (
                     <div className="space-y-4">
-                        {pending.map((req) => (
-                            <div
-                                key={req.id}
-                                className="rounded-lg border border-slate-200 p-4"
-                            >
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    <p>
-                                        <span className="font-semibold">
-                                            Tenant:
-                                        </span>{" "}
-                                        {req.tenant_name}
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold">
-                                            Slug:
-                                        </span>{" "}
-                                        {req.slug}
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold">
-                                            Subdomain:
-                                        </span>{" "}
-                                        {req.subdomain || "-"}
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold">
-                                            Custom Domain:
-                                        </span>{" "}
-                                        {req.custom_domain || "-"}
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold">
-                                            Requested Plan:
-                                        </span>{" "}
-                                        {req.requested_plan?.name ||
-                                            "No preference"}
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold">
-                                            Requested Admin:
-                                        </span>{" "}
-                                        {req.requested_admin_name} (
-                                        {req.requested_admin_email})
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold">
-                                            Admin Role:
-                                        </span>{" "}
-                                        Barangay Admin
-                                    </p>
-                                </div>
+                        {pending.map((req) => {
+                            const draft = drafts[req.id] ?? {};
+                            const isBusy = processingId === req.id;
 
-                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                                    <select
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                                        defaultValue={
-                                            req.requested_plan_id ||
-                                            plans[0]?.id ||
-                                            ""
-                                        }
-                                        onChange={(e) =>
-                                            approveForm.setData(
-                                                "plan_id",
-                                                e.target.value,
-                                            )
-                                        }
-                                    >
-                                        {plans.map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name} - P{p.price_monthly}/mo
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                                        placeholder="Review notes (optional)"
-                                        onChange={(e) => {
-                                            approveForm.setData(
-                                                "review_notes",
-                                                e.target.value,
-                                            );
-                                            rejectForm.setData(
-                                                "review_notes",
-                                                e.target.value,
-                                            );
-                                        }}
-                                    />
-                                </div>
+                            return (
+                                <article
+                                    key={req.id}
+                                    className="rounded-lg border border-slate-200 p-4"
+                                >
+                                    <dl className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                                        <Field label="Tenant" value={req.tenant_name} />
+                                        <Field label="Slug" value={req.slug} />
+                                        <Field label="Subdomain" value={req.subdomain || "-"} />
+                                        <Field
+                                            label="Custom Domain"
+                                            value={req.custom_domain || "-"}
+                                        />
+                                        <Field
+                                            label="Requested Plan"
+                                            value={
+                                                req.requested_plan?.name ||
+                                                "No preference"
+                                            }
+                                        />
+                                        <Field
+                                            label="Requested Admin"
+                                            value={`${req.requested_admin_name} (${req.requested_admin_email})`}
+                                        />
+                                    </dl>
 
-                                <div className="mt-3 flex gap-2">
-                                    <Link
-                                        href={`/super/tenants/create?signup_request_id=${req.id}`}
-                                        className="rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
-                                    >
-                                        Copy to Add Barangay
-                                    </Link>
-                                    <button
-                                        type="button"
-                                        className="rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700"
-                                        onClick={() =>
-                                            approve(
-                                                req.id,
-                                                req.requested_plan_id,
-                                            )
-                                        }
-                                    >
-                                        Approve and Provision
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="rounded-lg bg-red-600 px-3 py-2 text-white hover:bg-red-700"
-                                        onClick={() => reject(req.id)}
-                                    >
-                                        Reject
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                        <label className="text-sm">
+                                            <span className="mb-1 block font-medium text-slate-600">
+                                                Plan to provision
+                                            </span>
+                                            <select
+                                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                value={draft.plan_id ?? ""}
+                                                onChange={(e) =>
+                                                    updateDraft(req.id, {
+                                                        plan_id: e.target.value,
+                                                    })
+                                                }
+                                                disabled={isBusy}
+                                            >
+                                                {plans.map((p) => (
+                                                    <option key={p.id} value={p.id}>
+                                                        {p.name} — ₱{p.price_monthly}/mo
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label className="text-sm">
+                                            <span className="mb-1 block font-medium text-slate-600">
+                                                Review notes (optional)
+                                            </span>
+                                            <input
+                                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                value={draft.review_notes ?? ""}
+                                                onChange={(e) =>
+                                                    updateDraft(req.id, {
+                                                        review_notes: e.target.value,
+                                                    })
+                                                }
+                                                disabled={isBusy}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <Link
+                                            href={`/super/tenants/create?signup_request_id=${req.id}`}
+                                            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                        >
+                                            Copy to Add Barangay
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            onClick={() => approve(req.id)}
+                                            disabled={isBusy}
+                                        >
+                                            {isBusy ? "Approving…" : "Approve & Provision"}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            onClick={() => reject(req.id)}
+                                            disabled={isBusy}
+                                        >
+                                            {isBusy ? "Rejecting…" : "Reject"}
+                                        </button>
+                                    </div>
+                                </article>
+                            );
+                        })}
                     </div>
                 )}
-            </div>
+            </section>
 
-            <div className="mt-6 rounded-lg bg-white p-5 shadow-sm">
+            <section className="mt-6 rounded-lg bg-white p-5 shadow-sm">
                 <h2 className="mb-3 text-lg font-semibold text-slate-800">
                     Processed Requests ({processed.length})
                 </h2>
@@ -176,16 +203,16 @@ export default function TenantSignupRequests({ requests = [], plans = [] }) {
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50">
                                 <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">
+                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                                         Tenant
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">
+                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                                         Status
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">
+                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                                         Reviewed At
                                     </th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">
+                                    <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                                         Note
                                     </th>
                                 </tr>
@@ -215,7 +242,20 @@ export default function TenantSignupRequests({ requests = [], plans = [] }) {
                         </table>
                     </div>
                 )}
-            </div>
+            </section>
         </CentralLayout>
+    );
+}
+
+function Field({ label, value }) {
+    return (
+        <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {label}
+            </dt>
+            <dd className="mt-0.5 break-words text-sm text-slate-800">
+                {value}
+            </dd>
+        </div>
     );
 }

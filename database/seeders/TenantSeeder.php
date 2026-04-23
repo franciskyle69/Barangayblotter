@@ -35,15 +35,18 @@ class TenantSeeder extends Seeder
             ]
         );
 
-        $superAdmin = User::firstOrCreate(
+        // `is_super_admin` is not mass-assignable — set it explicitly
+        // via forceFill after firstOrNew so tests/seeders still provision
+        // a real super-admin.
+        $superAdmin = User::firstOrNew(
             ['email' => 'city@malaybalay.test'],
             [
                 'name' => 'Malaybalay City Admin',
                 'password' => Hash::make('password'),
                 'phone' => null,
-                'is_super_admin' => true,
             ]
         );
+        $superAdmin->forceFill(['is_super_admin' => true])->save();
 
         foreach ($tenants as $t) {
             $tenant = Tenant::firstOrCreate(

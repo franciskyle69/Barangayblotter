@@ -164,6 +164,30 @@ class TenantDatabaseManager
         }
     }
 
+    /**
+     * Drop the tenant's dedicated physical database (MySQL/PgSQL DROP
+     * DATABASE, or the SQLite file on disk). Must be called from a
+     * super-admin-gated controller AFTER the `tenants` row has already
+     * been removed, so the name is authoritative and unrecoverable.
+     *
+     * Previously this logic was private and callers had no way to
+     * actually purge a tenant's storage — `SuperAdminController::deleteTenant`
+     * was deleting only the central `tenants` row, leaving the tenant's
+     * PII database intact on the server.
+     */
+    public function dropTenantDatabase(string $databaseName): void
+    {
+        $this->assertSafeDatabaseName($databaseName);
+        // Make sure we are not holding an open connection to the
+        // database we are about to drop — that would fail on MySQL 8+.
+        try {
+            DB::purge('tenant');
+        } catch (Throwable) {
+            // ignore — a stale connection just means nothing to purge.
+        }
+        $this->dropPhysicalDatabase($databaseName);
+    }
+
     private function dropPhysicalDatabase(string $databaseName): void
     {
         $central = $this->centralConnectionName();

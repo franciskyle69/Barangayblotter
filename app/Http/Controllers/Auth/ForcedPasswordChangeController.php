@@ -8,9 +8,39 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ForcedPasswordChangeController extends Controller
 {
+    /**
+     * Full-page forced-password-change screen. Users with
+     * `must_change_password = true` cannot navigate anywhere else
+     * (`EnforcePasswordChange` middleware redirects them here). This is
+     * intentionally a standalone page, not a layout with sidebar nav —
+     * loading tenant data before the password is rotated would leak it
+     * into the browser even if the modal happens to fail to render.
+     */
+    public function show(Request $request): Response|RedirectResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return redirect()->route('login');
+        }
+
+        if (!$user->must_change_password) {
+            return redirect()->route('dashboard');
+        }
+
+        return Inertia::render('Auth/ForcedPasswordChange', [
+            'user' => [
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+        ]);
+    }
+
     public function update(Request $request): RedirectResponse
     {
         $validated = $request->validate([
