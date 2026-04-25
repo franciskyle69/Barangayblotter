@@ -21,3 +21,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Backup / dump artifacts (never commit)
+release-stage/database_backup.sql
+release-build/database_backup.sql
