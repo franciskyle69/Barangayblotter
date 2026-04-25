@@ -33,6 +33,8 @@ class LoginController extends Controller
             $user = Auth::user();
             $tenant = $isTenantDomain ? app('current_tenant') : null;
 
+            // (temporary debugging removed)
+
             // Tenant domain login policy:
             // - super admins must use central domain
             if ($isTenantDomain) {
@@ -53,7 +55,15 @@ class LoginController extends Controller
                     ])->onlyInput('email');
                 }
 
-                session(['current_tenant_id' => $tenant->id]);
+                session([
+                    'current_tenant_id' => $tenant->id,
+                    // Bind the authenticated session to this tenant so the
+                    // VerifyTenantSessionBinding middleware can detect and
+                    // reject cross-tenant cookie replay attempts.
+                    'auth_tenant_id' => $tenant->id,
+                ]);
+
+                // (temporary debugging removed)
 
                 ActivityLogService::record(
                     request: $request,
@@ -66,7 +76,9 @@ class LoginController extends Controller
                     actor: $user,
                 );
 
-                return redirect()->intended(route('dashboard'));
+                // Use a path-based redirect so tenant domains (e.g. *.lvh.me)
+                // don't get sent back to APP_URL's host (often localhost).
+                return redirect()->intended('/dashboard');
             }
 
             // Central domain login policy:
@@ -87,6 +99,11 @@ class LoginController extends Controller
                 ])->onlyInput('email');
             }
 
+            // Super admins carry a null tenant binding — their sessions
+            // are valid only on the central domain. VerifyTenantSessionBinding
+            // will reject the session if a tenant ever resolves for it.
+            session(['auth_tenant_id' => null]);
+
             ActivityLogService::record(
                 request: $request,
                 action: 'super.auth.login',
@@ -98,7 +115,7 @@ class LoginController extends Controller
             );
 
             // Super admin → city dashboard
-            return redirect()->intended(route('super.dashboard'));
+            return redirect()->intended('/super/dashboard');
         }
 
         if (!$isTenantDomain) {

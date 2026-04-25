@@ -58,52 +58,55 @@ class RegisterController extends Controller
             ],
         ]);
 
+        $tenant = app('current_tenant');
+        $requestedRole = $validated['requested_role'] ?? User::ROLE_CITIZEN;
+        // Elevated roles always start as Citizen; they require a super
+        // admin to promote. We keep `$requestedRole` for the activity log.
+        $effectiveRole = User::ROLE_CITIZEN;
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($validated['password']),
-            'role' => User::ROLE_CITIZEN,
+            'role' => $effectiveRole,
         ]);
 
         event(new Registered($user));
         Auth::login($user);
 
-        // If tenant was resolved from domain, auto-assign user to that tenant
-        if (app()->bound('current_tenant')) {
-            $tenant = app('current_tenant');
-            $requestedRole = $validated['requested_role'] ?? User::ROLE_CITIZEN;
-            $effectiveRole = $requestedRole === User::ROLE_CITIZEN
-                ? User::ROLE_CITIZEN
-                : User::ROLE_CITIZEN;
+        // Mirror LoginController: rotate the session id to defend
+        // against session fixation, then bind the session to this tenant
+        // so VerifyTenantSessionBinding recognises it. Previously this
+        // path skipped both steps, so the very next request logged the
+        // user out with a `missing_auth_tenant_binding` failure.
+        $request->session()->regenerate();
+        session([
+            'current_tenant_id' => $tenant->id,
+            'auth_tenant_id' => $tenant->id,
+        ]);
 
-            $user->update(['role' => $effectiveRole]);
-            session(['current_tenant_id' => $tenant->id]);
+        ActivityLogService::record(
+            request: $request,
+            action: 'tenant.auth.register',
+            description: 'Registered a new tenant user account.',
+            metadata: [
+                'requested_role' => $requestedRole,
+                'effective_role' => $effectiveRole,
+            ],
+            targetType: 'user',
+            targetId: $user->id,
+            tenantId: $tenant->id,
+            actor: $user,
+        );
 
-            ActivityLogService::record(
-                request: $request,
-                action: 'tenant.auth.register',
-                description: 'Registered a new tenant user account.',
-                metadata: [
-                    'requested_role' => $requestedRole,
-                    'effective_role' => $effectiveRole,
-                ],
-                targetType: 'user',
-                targetId: $user->id,
-                tenantId: $tenant->id,
-                actor: $user,
+        if ($requestedRole !== User::ROLE_CITIZEN) {
+            return redirect()->route('dashboard')->with(
+                'warning',
+                'Your account was created as Citizen. Requested elevated role requires super admin approval.'
             );
-
-            if ($requestedRole !== User::ROLE_CITIZEN) {
-                return redirect()->route('dashboard')->with(
-                    'warning',
-                    'Your account was created as Citizen. Requested elevated role requires super admin approval.'
-                );
-            }
-
-            return redirect()->route('dashboard');
         }
 
-        return redirect()->route('login');
+        return redirect()->route('dashboard');
     }
 }

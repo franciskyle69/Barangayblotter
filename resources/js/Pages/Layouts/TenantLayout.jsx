@@ -84,6 +84,17 @@ const Icon = ({ name, className = "size-4" }) => {
                     <path d="M9.5 12.5l2 2 3.5-4" />
                 </svg>
             );
+        case "support":
+            return (
+                <svg {...common}>
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M4.9 4.9l3.5 3.5" />
+                    <path d="M15.6 15.6l3.5 3.5" />
+                    <path d="M4.9 19.1l3.5-3.5" />
+                    <path d="M15.6 8.4l3.5-3.5" />
+                </svg>
+            );
         case "settings":
             return (
                 <svg {...common}>
@@ -97,17 +108,26 @@ const Icon = ({ name, className = "size-4" }) => {
 };
 
 const navItems = (tenant, permissions = {}) => {
+    // UX ordering:
+    // - Day-to-day work first
+    // - Admin/configuration later
+    // - Support near the bottom
     const items = [
+        { type: "section", label: "Main" },
         {
+            type: "link",
             label: "Overview",
             mobileLabel: "Dashboard",
             href: "/dashboard",
             icon: "dashboard",
         },
+        { type: "section", label: "Operations" },
     ];
 
+    // Core work
     if (permissions.view_incidents || permissions.create_incidents) {
         items.push({
+            type: "link",
             label: permissions.manage_incidents
                 ? "Incidents"
                 : "Report an Incident",
@@ -117,48 +137,9 @@ const navItems = (tenant, permissions = {}) => {
         });
     }
 
-    if (permissions.review_blotter_requests) {
-        items.push({
-            label: "Blotter Requests",
-            mobileLabel: "Blotter",
-            href: "/blotter-requests",
-            icon: "requests",
-        });
-    } else if (permissions.request_blotter_copy) {
-        items.push({
-            label: "My Requests",
-            mobileLabel: "Requests",
-            href: "/blotter-requests",
-            icon: "requests",
-        });
-    }
-
-    if (permissions.manage_users) {
-        items.push({
-            label: "Users",
-            mobileLabel: "Users",
-            href: "/users",
-            icon: "users",
-        });
-        items.push({
-            label: "Roles & Permissions",
-            mobileLabel: "Roles",
-            href: "/roles-permissions",
-            icon: "roles",
-        });
-    }
-
-    if (permissions.manage_branding) {
-        items.push({
-            label: "Branding",
-            mobileLabel: "Branding",
-            href: "/branding",
-            icon: "branding",
-        });
-    }
-
     if (tenant?.plan?.mediation_scheduling && permissions.manage_mediations) {
         items.push({
+            type: "link",
             label: "Mediations",
             mobileLabel: "Mediations",
             href: "/mediations",
@@ -168,6 +149,7 @@ const navItems = (tenant, permissions = {}) => {
 
     if (permissions.manage_patrol_logs) {
         items.push({
+            type: "link",
             label: "Patrol",
             mobileLabel: "Patrol",
             href: "/patrol",
@@ -175,14 +157,82 @@ const navItems = (tenant, permissions = {}) => {
         });
     }
 
-    if (permissions.manage_account_settings) {
+    if (permissions.review_blotter_requests) {
         items.push({
+            type: "link",
+            label: "Blotter Requests",
+            mobileLabel: "Blotter",
+            href: "/blotter-requests",
+            icon: "requests",
+        });
+    } else if (permissions.request_blotter_copy) {
+        items.push({
+            type: "link",
+            label: "My Requests",
+            mobileLabel: "Requests",
+            href: "/blotter-requests",
+            icon: "requests",
+        });
+    }
+
+    // Admin / configuration
+    if (permissions.manage_users) {
+        if (!items.some((i) => i.type === "section" && i.label === "Administration")) {
+            items.push({ type: "section", label: "Administration" });
+        }
+        items.push({
+            type: "link",
+            label: "Users",
+            mobileLabel: "Users",
+            href: "/users",
+            icon: "users",
+        });
+        items.push({
+            type: "link",
+            label: "Roles & Permissions",
+            mobileLabel: "Roles",
+            href: "/roles-permissions",
+            icon: "roles",
+        });
+    }
+
+    if (permissions.manage_branding) {
+        if (!items.some((i) => i.type === "section" && i.label === "Administration")) {
+            items.push({ type: "section", label: "Administration" });
+        }
+        items.push({
+            type: "link",
+            label: "Branding",
+            mobileLabel: "Branding",
+            href: "/branding",
+            icon: "branding",
+        });
+    }
+
+    if (permissions.manage_account_settings) {
+        if (!items.some((i) => i.type === "section" && i.label === "Administration")) {
+            items.push({ type: "section", label: "Administration" });
+        }
+        items.push({
+            type: "link",
             label: "Settings",
             mobileLabel: "Settings",
             href: "/settings",
             icon: "settings",
         });
     }
+
+    // Support is always available to every authenticated tenant user —
+    // it is the one-way channel for raising complaints / help requests
+    // with the central team, so we do NOT gate it behind a permission.
+    items.push({ type: "section", label: "Help" });
+    items.push({
+        type: "link",
+        label: "Support",
+        mobileLabel: "Support",
+        href: "/support",
+        icon: "support",
+    });
 
     return items;
 };
@@ -224,6 +274,7 @@ export default function TenantLayout({ children }) {
         current_tenant,
         tenant_permissions,
         app_name,
+        app_version,
         flash,
         logo_url,
     } = page.props;
@@ -357,7 +408,20 @@ export default function TenantLayout({ children }) {
                     }`}
                     aria-label="Main"
                 >
-                    {items.map((item) => (
+                    {items.map((item, idx) => {
+                        if (item.type === "section") {
+                            if (sidebarCollapsed) return null;
+                            return (
+                                <div
+                                    key={`section-${item.label}-${idx}`}
+                                    className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-white/50"
+                                >
+                                    {item.label}
+                                </div>
+                            );
+                        }
+
+                        return (
                         <div key={item.href} className="relative">
                             <span
                                 className={`pointer-events-none absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r transition-all duration-200 ${
@@ -405,8 +469,33 @@ export default function TenantLayout({ children }) {
                                 )}
                             </Link>
                         </div>
-                    ))}
+                        );
+                    })}
                 </nav>
+                {app_version && (
+                    <div
+                        className={`shrink-0 border-t border-white/5 ${
+                            sidebarCollapsed ? "px-2 py-3" : "px-6 py-3"
+                        }`}
+                    >
+                        <span
+                            className={`inline-flex items-center gap-1.5 rounded-full bg-white/5 font-medium text-slate-400 ${
+                                sidebarCollapsed
+                                    ? "px-1.5 py-1 text-[10px]"
+                                    : "px-2.5 py-1 text-xs"
+                            }`}
+                            title={`Running ${app_version}`}
+                        >
+                            <span
+                                className="size-1.5 shrink-0 rounded-full bg-emerald-400/80"
+                                aria-hidden
+                            />
+                            {sidebarCollapsed
+                                ? app_version.replace(/^v/, "v")
+                                : app_version}
+                        </span>
+                    </div>
+                )}
             </aside>
 
             <div className={`flex flex-1 flex-col ${sidebarWidthClass}`}>

@@ -31,7 +31,7 @@ const ChevronDownIcon = () => (
 
 export default function AppLayout({ children }) {
   const page = usePage();
-  const { auth, current_tenant, app_name, flash, logo_url } = page.props;
+  const { auth, current_tenant, app_name, app_version, flash, logo_url } = page.props;
   const user = auth?.user;
   const mustChangePassword = Boolean(user?.must_change_password);
   const isSuperAdmin = user?.is_super_admin;
@@ -73,6 +73,17 @@ export default function AppLayout({ children }) {
             </Link>
           ))}
         </nav>
+        {app_version && (
+          <div className="shrink-0 border-t border-white/5 px-6 py-3">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-400"
+              title={`Running ${app_version}`}
+            >
+              <span className="size-1.5 rounded-full bg-emerald-400/80" aria-hidden />
+              {app_version}
+            </span>
+          </div>
+        )}
       </aside>
 
       {/* Main content area */}
@@ -94,6 +105,15 @@ export default function AppLayout({ children }) {
             ))}
           </div>
           <div className="flex items-center justify-end gap-3">
+            {app_version && (
+              <span
+                className="hidden items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline-flex lg:hidden"
+                title={`Running ${app_version}`}
+              >
+                <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                {app_version}
+              </span>
+            )}
             {!isSuperAdmin && current_tenant && (
               <Link
                 href="/tenant/select"

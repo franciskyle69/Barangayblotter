@@ -3,8 +3,14 @@ import { useForm, usePage } from "@inertiajs/react";
 
 export default function Login() {
     const { errors, logo_url, current_tenant } = usePage().props;
+    const csrfToken =
+        typeof document !== "undefined"
+            ? document.head
+                  ?.querySelector('meta[name="csrf-token"]')
+                  ?.getAttribute("content")
+            : null;
     const [logoError, setLogoError] = useState(false);
-    const { data, setData, post, processing } = useForm({
+    const { data, setData, post, processing, transform } = useForm({
         email: "",
         password: "",
         remember: false,
@@ -13,8 +19,8 @@ export default function Login() {
     const logoSrc = logo_url || "/images/logo.png";
     const tenantLabel = current_tenant?.slug || current_tenant?.name;
     const title = tenantLabel
-        ? `Barangay ${tenantLabel} blot`
-        : "Bukidnon International INC";
+        ? `Office of the barangay ${tenantLabel} blottter`
+        : "International Websystem of the universe and in the milky way galaxy";
     const loginBackgroundUrl = current_tenant?.login_background_url || null;
     const loginOverlayOpacity =
         current_tenant?.login_background_opacity != null
@@ -102,7 +108,20 @@ export default function Login() {
                     <form
                         onSubmit={(e) => {
                             e.preventDefault();
-                            post("/login");
+                            // If CSRF cookie/header sync breaks on some tenant domains
+                            // (seen as 419 Page Expired), fall back to sending the token
+                            // explicitly with the request.
+                            transform((payload) => ({
+                                ...payload,
+                                ...(csrfToken ? { _token: csrfToken } : {}),
+                            }));
+
+                            post("/login", {
+                                headers: csrfToken
+                                    ? { "X-CSRF-TOKEN": csrfToken }
+                                    : undefined,
+                                onFinish: () => transform((payload) => payload),
+                            });
                         }}
                         className="space-y-4"
                     >

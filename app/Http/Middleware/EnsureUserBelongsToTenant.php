@@ -13,11 +13,12 @@ class EnsureUserBelongsToTenant
         $tenant = app()->bound('current_tenant') ? app('current_tenant') : null;
 
         if ($request->user()?->is_super_admin) {
-            return redirect()->route('super.dashboard');
+            // Path-based to avoid APP_URL host mismatches.
+            return redirect('/super/dashboard');
         }
 
         if (!$tenant) {
-            return redirect()->route('login');
+            return redirect('/login');
         }
 
         if (!$tenant->is_active) {

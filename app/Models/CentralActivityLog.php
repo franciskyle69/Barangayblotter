@@ -11,6 +11,7 @@ class CentralActivityLog extends Model
 
     protected $fillable = [
         'user_id',
+        'tenant_user_id',
         'actor_name',
         'actor_email',
         'action',

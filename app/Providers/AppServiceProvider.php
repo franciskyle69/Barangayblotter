@@ -43,12 +43,18 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->assertSessionCookieScope();
+
         PreventRequestsDuringMaintenance::except([
             'system/update',
             'system/update/*',
         ]);
 
         Gate::define('trigger-system-update', function ($user): bool {
+            return (bool) ($user?->is_super_admin);
+        });
+
+        Gate::define('publish-releases', function ($user): bool {
             return (bool) ($user?->is_super_admin);
         });
 
@@ -59,5 +65,43 @@ class AppServiceProvider extends ServiceProvider
                 'navShowMediations' => $currentTenant && $currentTenant->plan->mediation_scheduling,
             ]);
         });
+    }
+
+    /**
+     * Enforces a safe `session.domain` configuration at boot.
+     *
+     * A leading-dot cookie domain (e.g. `.example.com`) is shared across
+     * all subdomains — which means a session cookie issued on tenant A's
+     * subdomain would also be sent to tenant B's subdomain, enabling
+     * cross-tenant session replay. For a multi-tenant app with one tenant
+     * per subdomain, the cookie MUST be host-only (SESSION_DOMAIN=null).
+     *
+     * In production we fail hard rather than boot into an insecure state.
+     * In non-production we only log a warning so local dev isn't blocked.
+     */
+    private function assertSessionCookieScope(): void
+    {
+        $domain = config('session.domain');
+
+        if (!is_string($domain) || $domain === '') {
+            return;
+        }
+
+        if (!str_starts_with($domain, '.')) {
+            return;
+        }
+
+        $message = sprintf(
+            'Unsafe session.domain [%s]: a leading-dot domain lets one tenant subdomain receive another tenant\'s session cookie. Set SESSION_DOMAIN=null for host-only cookies.',
+            $domain,
+        );
+
+        if ($this->app->environment('production')) {
+            throw new \RuntimeException($message);
+        }
+
+        if (function_exists('logger')) {
+            logger()->warning($message);
+        }
     }
 }

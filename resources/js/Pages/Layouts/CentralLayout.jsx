@@ -79,59 +79,108 @@ const Icon = ({ name, className = "size-4" }) => {
                     <path d="M16 21v-3" />
                 </svg>
             );
+        case "release":
+            return (
+                <svg {...common}>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05" />
+                    <path d="M12 22.08V12" />
+                </svg>
+            );
+        case "support":
+            return (
+                <svg {...common}>
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M4.9 4.9l3.5 3.5" />
+                    <path d="M15.6 15.6l3.5 3.5" />
+                    <path d="M4.9 19.1l3.5-3.5" />
+                    <path d="M15.6 8.4l3.5-3.5" />
+                </svg>
+            );
         default:
             return null;
     }
 };
 
 const centralNavItems = [
+    // Daily ops
+    { type: "section", label: "Main" },
     {
+        type: "link",
         label: "Overview",
         mobileLabel: "Dashboard",
         href: "/super/dashboard",
         icon: "dashboard",
     },
+    { type: "section", label: "Operations" },
     {
-        label: "All Barangays",
-        mobileLabel: "Barangays",
-        href: "/super/tenants",
-        icon: "tenants",
-    },
-    {
-        label: "Settings",
-        mobileLabel: "Settings",
-        href: "/super/settings",
-        icon: "settings",
-    },
-    {
-        label: "Roles & Permissions",
-        mobileLabel: "Roles",
-        href: "/super/roles-permissions",
-        icon: "roles",
-    },
-    {
+        type: "link",
         label: "Signup Requests",
         mobileLabel: "Requests",
         href: "/super/tenant-signup-requests",
         icon: "requests",
     },
     {
+        type: "link",
+        label: "Support",
+        mobileLabel: "Support",
+        href: "/super/support",
+        icon: "support",
+    },
+    {
+        type: "link",
+        label: "All Barangays",
+        mobileLabel: "Barangays",
+        href: "/super/tenants",
+        icon: "tenants",
+    },
+
+    // Auditing & maintenance
+    { type: "section", label: "Maintenance" },
+    {
+        type: "link",
         label: "Activity Logs",
         mobileLabel: "Logs",
         href: "/super/activity-logs",
         icon: "logs",
     },
     {
+        type: "link",
         label: "Backup & Restore",
         mobileLabel: "Backup",
         href: "/super/backup-restore",
         icon: "backup",
     },
+    {
+        type: "link",
+        label: "Releases",
+        mobileLabel: "Releases",
+        href: "/super/releases",
+        icon: "release",
+    },
+
+    // Configuration
+    { type: "section", label: "Administration" },
+    {
+        type: "link",
+        label: "Roles & Permissions",
+        mobileLabel: "Roles",
+        href: "/super/roles-permissions",
+        icon: "roles",
+    },
+    {
+        type: "link",
+        label: "Settings",
+        mobileLabel: "Settings",
+        href: "/super/settings",
+        icon: "settings",
+    },
 ];
 
 export default function CentralLayout({ children }) {
     const page = usePage();
-    const { auth, app_name, flash, logo_url } = page.props;
+    const { auth, app_name, app_version, flash, logo_url } = page.props;
     const lastFlashRef = useRef({ success: null, error: null, warning: null });
     const user = auth?.user;
     const mustChangePassword = Boolean(user?.must_change_password);
@@ -261,7 +310,20 @@ export default function CentralLayout({ children }) {
                     }`}
                     aria-label="Main"
                 >
-                    {centralNavItems.map((item) => (
+                    {centralNavItems.map((item, idx) => {
+                        if (item.type === "section") {
+                            if (sidebarCollapsed) return null;
+                            return (
+                                <div
+                                    key={`section-${item.label}-${idx}`}
+                                    className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-white/50"
+                                >
+                                    {item.label}
+                                </div>
+                            );
+                        }
+
+                        return (
                         <div key={item.href} className="relative">
                             <span
                                 className={`pointer-events-none absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r transition-all duration-200 ${
@@ -305,8 +367,31 @@ export default function CentralLayout({ children }) {
                                 )}
                         </Link>
                         </div>
-                    ))}
+                        );
+                    })}
                 </nav>
+                {app_version && (
+                    <div
+                        className={`shrink-0 border-t border-white/5 ${
+                            sidebarCollapsed ? "px-2 py-3" : "px-6 py-3"
+                        }`}
+                    >
+                        <span
+                            className={`inline-flex items-center gap-1.5 rounded-full bg-white/5 font-medium text-slate-400 ${
+                                sidebarCollapsed
+                                    ? "px-1.5 py-1 text-[10px]"
+                                    : "px-2.5 py-1 text-xs"
+                            }`}
+                            title={`Running ${app_version}`}
+                        >
+                            <span
+                                className="size-1.5 shrink-0 rounded-full bg-cyan-400/80"
+                                aria-hidden
+                            />
+                            {app_version}
+                        </span>
+                    </div>
+                )}
             </aside>
 
             <div className={`flex flex-1 flex-col ${sidebarWidthClass}`}>
@@ -332,7 +417,9 @@ export default function CentralLayout({ children }) {
                         {sidebarCollapsed ? "»" : "«"}
                     </button>
                     <div className="flex flex-1 flex-wrap items-center gap-1 lg:hidden">
-                        {centralNavItems.map((item) => (
+                        {centralNavItems
+                            .filter((item) => item.type !== "section")
+                            .map((item) => (
                             <Link
                                 key={item.href}
                                 href={item.href}

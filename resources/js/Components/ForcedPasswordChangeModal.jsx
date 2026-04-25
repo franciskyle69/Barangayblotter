@@ -110,6 +110,11 @@ export default function ForcedPasswordChangeModal({ open }) {
                             className={inputClass}
                             required
                         />
+                        {errors.password_confirmation && (
+                            <p className="mt-1 text-xs text-red-600">
+                                {errors.password_confirmation}
+                            </p>
+                        )}
                     </div>
 
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

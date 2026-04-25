@@ -25,4 +25,14 @@ return [
 
     // WARNING: Changing APP_KEY breaks encrypted data/sessions.
     'allow_app_key_regen' => (bool) env('UPDATE_ALLOW_APP_KEY_REGEN', false),
+
+    // Release publisher (one-click "build & attach release.zip" from central admin).
+    // Needs a GitHub PAT with `contents: write` and `actions: write` scopes so the
+    // central app can dispatch the build-release-asset workflow. Downloading the
+    // resulting asset on tenants still uses UPDATE_GITHUB_TOKEN (read-only is fine).
+    'publish' => [
+        'token' => env('UPDATE_GITHUB_PUBLISH_TOKEN'),
+        'workflow_file' => env('UPDATE_GITHUB_PUBLISH_WORKFLOW', 'build-release-asset.yml'),
+        'branch' => env('UPDATE_GITHUB_PUBLISH_BRANCH', 'main'),
+    ],
 ];

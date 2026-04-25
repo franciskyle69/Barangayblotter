@@ -22,6 +22,68 @@ const STATUS_LABELS = {
 };
 const CHART_COLORS = ["#f59e0b", "#3b82f6", "#10b981", "#475569"];
 
+const TrendPill = ({ value, tone = "neutral" }) => {
+    const isUp = typeof value === "number" && value > 0;
+    const isDown = typeof value === "number" && value < 0;
+    const label =
+        typeof value !== "number" || Number.isNaN(value)
+            ? "—"
+            : `${isUp ? "+" : ""}${value.toFixed(0)}%`;
+
+    const toneClass =
+        tone === "good"
+            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+            : tone === "bad"
+              ? "bg-rose-50 text-rose-700 ring-rose-200"
+              : "bg-slate-50 text-slate-700 ring-slate-200";
+
+    return (
+        <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ring-1 ${toneClass}`}
+            title="Trend pill (add historical tracking to enable real trends)"
+        >
+            <span aria-hidden className="text-[12px] leading-none">
+                {isUp ? "↗" : isDown ? "↘" : "•"}
+            </span>
+            {label}
+        </span>
+    );
+};
+
+const StatCard = ({
+    label,
+    value,
+    sub,
+    icon,
+    accentClass = "text-slate-900",
+    pill,
+}) => {
+    return (
+        <div className="group relative overflow-hidden rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-sm font-medium text-slate-500">
+                        {label}
+                    </p>
+                    <p className={`mt-2 text-2xl font-bold ${accentClass}`}>
+                        {value}
+                    </p>
+                    {sub && (
+                        <p className="mt-1 text-xs text-slate-400">{sub}</p>
+                    )}
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                    {pill}
+                    <span className="grid size-10 place-items-center rounded-devias bg-slate-900/5 text-slate-700 transition group-hover:bg-slate-900/10">
+                        {icon}
+                    </span>
+                </div>
+            </div>
+            <div className="pointer-events-none absolute -right-10 -top-10 size-24 rounded-full bg-slate-900/5 blur-2xl" />
+        </div>
+    );
+};
+
 export default function Dashboard({
     tenant,
     role,
@@ -61,6 +123,56 @@ export default function Dashboard({
         citizen: "Citizen",
     };
 
+    const StatusBadge = ({ status }) => {
+        const tone =
+            status === "open"
+                ? "bg-amber-50 text-amber-800 ring-amber-200"
+                : status === "under_mediation"
+                  ? "bg-blue-50 text-blue-800 ring-blue-200"
+                  : status === "settled"
+                    ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                    : "bg-slate-50 text-slate-800 ring-slate-200";
+        const label =
+            STATUS_LABELS[status] ??
+            String(status || "")
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (m) => m.toUpperCase());
+
+        return (
+            <span
+                className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ring-1 ${tone}`}
+            >
+                {label}
+            </span>
+        );
+    };
+
+    const nearingLimit =
+        tenant?.plan &&
+        !tenant.plan.has_unlimited &&
+        typeof tenant.plan.incident_limit_per_month === "number" &&
+        tenant.plan.incident_limit_per_month > 0 &&
+        stats.incidents_this_month / tenant.plan.incident_limit_per_month >= 0.8;
+
+    const alerts = [
+        nearingLimit
+            ? {
+                  title: "Incident limit almost reached",
+                  body: `You’ve used ${stats.incidents_this_month}/${tenant.plan.incident_limit_per_month} incidents for this month.`,
+                  ctaLabel: "View incidents",
+                  ctaHref: "/incidents",
+              }
+            : null,
+        stats.open > 0
+            ? {
+                  title: "Open incidents need attention",
+                  body: `${stats.open} incident(s) are still open.`,
+                  ctaLabel: "Review open",
+                  ctaHref: "/incidents",
+              }
+            : null,
+    ].filter(Boolean);
+
     return (
         <TenantLayout>
             {tenant && (
@@ -74,61 +186,199 @@ export default function Dashboard({
                                 {roleLabels[role] || role} · {tenant.name}
                             </p>
                         </div>
-                        <Link
-                            href="/incidents/create"
-                            className="inline-flex items-center gap-2 rounded-devias bg-devias-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
-                        >
-                            New incident
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                                href="/incidents/create"
+                                className="inline-flex items-center gap-2 rounded-devias bg-devias-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+                            >
+                                <span aria-hidden>＋</span> New incident
+                            </Link>
+                            <Link
+                                href="/support/create"
+                                className="inline-flex items-center gap-2 rounded-devias border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                            >
+                                <span aria-hidden>?</span> Get support
+                            </Link>
+                        </div>
                     </div>
 
                     <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                        <div className="rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm">
-                            <p className="text-sm font-medium text-slate-500">
-                                Incidents this month
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-slate-900">
-                                {stats.incidents_this_month}
-                            </p>
-                            {!tenant.plan?.has_unlimited && (
-                                <p className="mt-1 text-xs text-slate-400">
-                                    Limit:{" "}
-                                    {tenant.plan?.incident_limit_per_month}
-                                    /month
-                                </p>
+                        <StatCard
+                            label="Incidents this month"
+                            value={stats.incidents_this_month}
+                            sub={
+                                tenant.plan?.has_unlimited
+                                    ? "Unlimited plan"
+                                    : `Limit: ${tenant.plan?.incident_limit_per_month}/month`
+                            }
+                            pill={<TrendPill value={null} />}
+                            icon={
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="size-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                >
+                                    <path d="M4 19V5" />
+                                    <path d="M4 19h16" />
+                                    <path d="M7 15l4-4 3 3 6-7" />
+                                </svg>
+                            }
+                        />
+                        <StatCard
+                            label="Open"
+                            value={stats.open}
+                            accentClass="text-amber-600"
+                            pill={
+                                <TrendPill
+                                    value={null}
+                                    tone={stats.open > 0 ? "bad" : "good"}
+                                />
+                            }
+                            icon={
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="size-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                >
+                                    <path d="M12 9v4" />
+                                    <path d="M12 17h.01" />
+                                    <path d="M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0z" />
+                                </svg>
+                            }
+                        />
+                        <StatCard
+                            label="Under mediation"
+                            value={stats.under_mediation}
+                            accentClass="text-blue-600"
+                            pill={<TrendPill value={null} />}
+                            icon={
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="size-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                >
+                                    <path d="M7 11h10" />
+                                    <path d="M7 15h6" />
+                                    <path d="M6 3h12a2 2 0 0 1 2 2v14l-4-3H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+                                </svg>
+                            }
+                        />
+                        <StatCard
+                            label="Settled"
+                            value={stats.settled}
+                            accentClass="text-emerald-600"
+                            pill={<TrendPill value={null} tone="good" />}
+                            icon={
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="size-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                >
+                                    <path d="M20 6 9 17l-5-5" />
+                                </svg>
+                            }
+                        />
+                        <StatCard
+                            label="Escalated"
+                            value={stats.escalated}
+                            accentClass="text-slate-700"
+                            pill={<TrendPill value={null} />}
+                            icon={
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="size-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                >
+                                    <path d="M12 2v20" />
+                                    <path d="M19 9l-7-7-7 7" />
+                                </svg>
+                            }
+                        />
+                    </div>
+
+                    <div className="mb-8 grid gap-6 lg:grid-cols-3">
+                        <div className="rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm lg:col-span-2">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                                <h2 className="font-semibold text-slate-900">
+                                    Alerts & insights
+                                </h2>
+                                <span className="text-xs font-medium text-slate-500">
+                                    Today
+                                </span>
+                            </div>
+                            {alerts.length === 0 ? (
+                                <div className="rounded-devias border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                                    No alerts right now. You’re all set.
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {alerts.map((a) => (
+                                        <div
+                                            key={a.title}
+                                            className="flex flex-wrap items-start justify-between gap-3 rounded-devias border border-slate-200/70 bg-white p-4 hover:bg-slate-50"
+                                        >
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-900">
+                                                    {a.title}
+                                                </p>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    {a.body}
+                                                </p>
+                                            </div>
+                                            <Link
+                                                href={a.ctaHref}
+                                                className="inline-flex items-center rounded-devias border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                                            >
+                                                {a.ctaLabel}
+                                            </Link>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                         <div className="rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm">
-                            <p className="text-sm font-medium text-slate-500">
-                                Open
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-amber-600">
-                                {stats.open}
-                            </p>
-                        </div>
-                        <div className="rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm">
-                            <p className="text-sm font-medium text-slate-500">
-                                Under mediation
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-blue-600">
-                                {stats.under_mediation}
-                            </p>
-                        </div>
-                        <div className="rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm">
-                            <p className="text-sm font-medium text-slate-500">
-                                Settled
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-emerald-600">
-                                {stats.settled}
-                            </p>
-                        </div>
-                        <div className="rounded-devias border border-slate-200/80 bg-white p-5 shadow-sm">
-                            <p className="text-sm font-medium text-slate-500">
-                                Escalated
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-slate-700">
-                                {stats.escalated}
-                            </p>
+                            <h2 className="mb-4 font-semibold text-slate-900">
+                                Quick actions
+                            </h2>
+                            <div className="grid gap-2">
+                                <Link
+                                    href="/incidents/create"
+                                    className="rounded-devias border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                                >
+                                    Create incident
+                                    <p className="mt-1 text-xs font-medium text-slate-500">
+                                        Report a new incident record
+                                    </p>
+                                </Link>
+                                <Link
+                                    href="/blotter-requests"
+                                    className="rounded-devias border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                                >
+                                    View requests
+                                    <p className="mt-1 text-xs font-medium text-slate-500">
+                                        Track blotter copy requests
+                                    </p>
+                                </Link>
+                                <Link
+                                    href="/support/create"
+                                    className="rounded-devias border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                                >
+                                    Contact support
+                                    <p className="mt-1 text-xs font-medium text-slate-500">
+                                        Open a support ticket
+                                    </p>
+                                </Link>
+                            </div>
                         </div>
                     </div>
 
@@ -322,8 +572,9 @@ export default function Dashboard({
                                             href={`/incidents/${inc.id}`}
                                             className="flex items-center justify-between px-5 py-3 transition hover:bg-slate-50"
                                         >
-                                            <span className="font-medium text-slate-800">
+                                            <span className="flex items-center gap-2 font-medium text-slate-800">
                                                 {inc.blotter_number || "N/A"}
+                                                <StatusBadge status={inc.status} />
                                             </span>
                                             <span className="text-sm text-slate-500">
                                                 {inc.incident_type} ·{" "}

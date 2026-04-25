@@ -10,6 +10,15 @@ class HandleInertiaRequests extends Middleware
 {
     protected $rootView = 'app';
 
+    /**
+     * Memoized reading of `version.txt` (managed by release-please). The
+     * file is read once per PHP process instead of on every request — it
+     * only changes when a new release is deployed, and at that point the
+     * PHP process is replaced by the updater anyway.
+     */
+    private static ?string $appVersionCache = null;
+    private static bool $appVersionResolved = false;
+
     public function version(Request $request): ?string
     {
         return parent::version($request);
@@ -86,6 +95,7 @@ class HandleInertiaRequests extends Middleware
                 ? $request->session()->get('errors')->getBag('default')->getMessages()
                 : (object) [],
             'app_name' => config('app.name'),
+            'app_version' => fn() => $this->resolveAppVersion(),
             'logo_url' => function () {
                 if (app()->bound('current_tenant')) {
                     $tenant = app('current_tenant');
@@ -95,5 +105,42 @@ class HandleInertiaRequests extends Middleware
                 return '/images/logo.png';
             },
         ];
+    }
+
+    /**
+     * Returns the current app version as a display-friendly string (e.g.
+     * "v1.4.0"). Reads `version.txt` at the project root — release-please
+     * owns that file, so this is automatically correct after every deploy.
+     *
+     * The leading "v" is normalized: if the file contains `1.4.0` we emit
+     * `v1.4.0`; if it contains `v1.4.0` we emit `v1.4.0` (no double-v).
+     * Returns null if the file is missing or unreadable so the UI can
+     * gracefully hide the badge during local development.
+     */
+    private function resolveAppVersion(): ?string
+    {
+        if (self::$appVersionResolved) {
+            return self::$appVersionCache;
+        }
+
+        self::$appVersionResolved = true;
+
+        $path = base_path('version.txt');
+
+        if (!is_file($path) || !is_readable($path)) {
+            return self::$appVersionCache = null;
+        }
+
+        $raw = trim((string) @file_get_contents($path));
+
+        if ($raw === '') {
+            return self::$appVersionCache = null;
+        }
+
+        // Strip any leading "v"/"V" and re-prefix, so both "1.4.0" and
+        // "v1.4.0" normalize to "v1.4.0".
+        $normalized = ltrim($raw, 'vV');
+
+        return self::$appVersionCache = 'v' . $normalized;
     }
 }

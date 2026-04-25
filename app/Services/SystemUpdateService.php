@@ -35,25 +35,40 @@ class SystemUpdateService
         // even if `down` fails early.
         $backupPath = $this->backupCurrentSystem($update);
 
-        $update->appendLog('Enabling maintenance mode...');
-        $down = ['down'];
-        if ($update->maintenance_bypass_secret) {
-            $down[] = '--secret=' . $update->maintenance_bypass_secret;
-            if ($url = $update->maintenanceBypassUrl()) {
-                $update->appendLog('If this page shows Service Unavailable after a refresh, open: ' . $url);
-            }
-        }
-        try {
-            $this->artisanCentral($update, $down);
-        } catch (Throwable $e) {
-            $update->appendLog('WARNING: could not enable maintenance mode: ' . trim($e->getMessage()));
-            $update->appendLog('Continuing without maintenance mode. Users may hit transient errors while files swap.');
-        }
-
         try {
             [$tag, $zipPath] = $this->downloadLatestReleaseZip($update);
             $update->version = $tag;
             $update->save();
+            // If already up to date, do not take the app down or run expensive steps.
+            $current = $this->readLocalVersionTag();
+            if ($current !== null && $this->normalizeTag($current) === $this->normalizeTag((string) $tag)) {
+                $update->appendLog("Already up to date ({$tag}). No update required.");
+                $this->cleanup();
+                return;
+            }
+
+            // Keep the UI's version badge in sync with the deployed release tag.
+            // The frontend reads this via HandleInertiaRequests::resolveAppVersion().
+            try {
+                File::put(base_path('version.txt'), trim((string) $tag) . PHP_EOL);
+            } catch (Throwable $e) {
+                $update->appendLog('WARNING: could not write version.txt: ' . trim($e->getMessage()));
+            }
+
+            $update->appendLog('Enabling maintenance mode...');
+            $down = ['down'];
+            if ($update->maintenance_bypass_secret) {
+                $down[] = '--secret=' . $update->maintenance_bypass_secret;
+                if ($url = $update->maintenanceBypassUrl()) {
+                    $update->appendLog('If this page shows Service Unavailable after a refresh, open: ' . $url);
+                }
+            }
+            try {
+                $this->artisanCentral($update, $down);
+            } catch (Throwable $e) {
+                $update->appendLog('WARNING: could not enable maintenance mode: ' . trim($e->getMessage()));
+                $update->appendLog('Continuing without maintenance mode. Users may hit transient errors while files swap.');
+            }
 
             $extractPath = $this->extractZip($update, $zipPath);
 
@@ -93,6 +108,22 @@ class SystemUpdateService
             // leave app down; job will call rollback()
             throw $e;
         }
+    }
+
+    private function readLocalVersionTag(): ?string
+    {
+        $path = base_path('version.txt');
+        if (!is_file($path) || !is_readable($path)) {
+            return null;
+        }
+
+        $raw = trim((string) @file_get_contents($path));
+        return $raw === '' ? null : $raw;
+    }
+
+    private function normalizeTag(string $tag): string
+    {
+        return 'v' . ltrim(trim($tag), "vV \t\n\r\0\x0B");
     }
 
     public function rollback(SystemUpdate $update): void
@@ -193,7 +224,9 @@ class SystemUpdateService
             throw new \RuntimeException("Release asset not found: {$assetName}. Upload it to the GitHub Release.");
         }
 
-        $zipPath = $this->workDir . DIRECTORY_SEPARATOR . 'release.zip';
+        // Use a unique filename per run to avoid issues with locked/blocked
+        // stale files on Windows (Defender, sync tools, etc.).
+        $zipPath = $this->workDir . DIRECTORY_SEPARATOR . 'release_' . now()->format('Ymd_His') . '_' . Str::random(6) . '.zip';
 
         $downloadTimeout = (int) config('system_update.github.http_timeout_download', 1800);
 
@@ -205,6 +238,16 @@ class SystemUpdateService
         if ($token) {
             $binReq = $binReq->withToken($token);
         }
+        // Best-effort cleanup of older fixed-name artifacts (legacy).
+        try {
+            $legacy = $this->workDir . DIRECTORY_SEPARATOR . 'release.zip';
+            if (is_file($legacy)) {
+                @unlink($legacy);
+            }
+        } catch (Throwable) {
+            // non-fatal
+        }
+
         $binReq->sink($zipPath)->get($url)->throw();
 
         return [$tag, $zipPath];
@@ -339,8 +382,20 @@ class SystemUpdateService
 
     private function cleanup(): void
     {
-        File::deleteDirectory($this->workDir . DIRECTORY_SEPARATOR . 'extracted');
-        File::delete($this->workDir . DIRECTORY_SEPARATOR . 'release.zip');
+        try {
+            File::deleteDirectory($this->workDir . DIRECTORY_SEPARATOR . 'extracted');
+        } catch (Throwable) {
+            // non-fatal
+        }
+
+        // Delete any downloaded zip artifacts from this work dir (best-effort).
+        try {
+            foreach (File::glob($this->workDir . DIRECTORY_SEPARATOR . '*.zip') as $zip) {
+                @unlink($zip);
+            }
+        } catch (Throwable) {
+            // non-fatal
+        }
     }
 
     private function clearApplicationCaches(SystemUpdate $update): void

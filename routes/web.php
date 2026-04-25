@@ -15,11 +15,14 @@ use App\Http\Controllers\TenantBrandingController;
 use App\Http\Controllers\TenantRolePermissionsController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\TenantUsersController;
+use App\Http\Controllers\SuperSupportController;
 use App\Http\Controllers\SuperTenantSignupRequestController;
+use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\SuperRolePermissionsController;
 use App\Http\Controllers\SuperActivityLogController;
 use App\Http\Controllers\SuperBackupController;
+use App\Http\Controllers\SuperReleaseController;
 use App\Http\Controllers\TenantSignupController;
 use App\Http\Controllers\SystemUpdateController;
 use Illuminate\Support\Facades\Route;
@@ -28,22 +31,58 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// IMPORTANT: Do not wrap the login page in the `guest` middleware.
+// On tenant domains, if a stale/remembered auth state exists but is rejected
+// by tenant session binding, `guest` can create an infinite /login ↔ /dashboard loop.
+Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
+
 Route::middleware('guest')->group(function () {
-    Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('login', [LoginController::class, 'login']);
+    // Rate limits protect against credential stuffing, registration
+    // floods and password-reset email bombs. `throttle:8,1` = 8 requests
+    // per minute per IP, which is generous for legitimate retries but
+    // crushes any automated abuse. Password reset uses a stricter 6/min.
+    Route::post('login', [LoginController::class, 'login'])->middleware('throttle:8,1');
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.email');
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
-    Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.update');
+    Route::post('reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.update');
     Route::get('register', [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('register', [RegisterController::class, 'register']);
+    Route::post('register', [RegisterController::class, 'register'])->middleware('throttle:4,1');
     Route::get('tenant-signup', [TenantSignupController::class, 'create'])->name('tenant-signup.create');
-    Route::post('tenant-signup', [TenantSignupController::class, 'store'])->name('tenant-signup.store');
+    Route::post('tenant-signup', [TenantSignupController::class, 'store'])
+        ->middleware('throttle:4,1')
+        ->name('tenant-signup.store');
     Route::get('tenant-signup/payment/success', [TenantSignupController::class, 'paymentSuccess'])->name('tenant-signup.payment.success');
     Route::get('tenant-signup/payment/cancel', [TenantSignupController::class, 'paymentCancel'])->name('tenant-signup.payment.cancel');
 });
 
 Route::post('logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+
+// TEMP DEBUG: remove after tenant login fixed.
+Route::get('/__debug/auth', function (\Illuminate\Http\Request $request) {
+    return response()->json([
+        'host' => $request->getHost(),
+        'path' => $request->path(),
+        'auth_check' => auth()->check(),
+        'auth_id' => auth()->id(),
+        'session_id' => $request->hasSession() ? $request->session()->getId() : null,
+        'session_driver' => config('session.driver'),
+        'session_connection' => config('session.connection'),
+        'session_keys' => $request->hasSession() ? array_keys($request->session()->all()) : [],
+        'session_auth_tenant_id' => $request->session()->get('auth_tenant_id'),
+        'session_current_tenant_id' => $request->session()->get('current_tenant_id'),
+        'tenant_bound' => app()->bound('current_tenant'),
+        'tenant_id' => app()->bound('current_tenant') ? app('current_tenant')->id : null,
+        'cookies' => array_keys($request->cookies->all()),
+    ]);
+});
+Route::get('password/force-change', [ForcedPasswordChangeController::class, 'show'])
+    ->name('password.force.change')
+    ->middleware('auth');
 Route::put('password/force-change', [ForcedPasswordChangeController::class, 'update'])
     ->name('password.force.update')
     ->middleware('auth');
@@ -62,7 +101,7 @@ Route::middleware(['auth', 'password.change', 'super_admin'])->group(function ()
 });
 
 // Tenant-scoped app (barangay staff & residents)
-Route::middleware(['auth', 'password.change', 'tenant', 'tenant.ensure', 'tenant.db'])->group(function () {
+Route::middleware(['auth', 'password.change', 'tenant', 'tenant.ensure', 'tenant.db', 'tenant.session.binding'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::middleware('tenant.permission:manage_account_settings')->group(function () {
@@ -128,10 +167,26 @@ Route::middleware(['auth', 'password.change', 'tenant', 'tenant.ensure', 'tenant
         Route::post('blotter-requests/{blotterRequest}/approve', [BlotterRequestController::class, 'approve'])->name('blotter-requests.approve');
         Route::post('blotter-requests/{blotterRequest}/reject', [BlotterRequestController::class, 'reject'])->name('blotter-requests.reject');
     });
+
+    // Support: any authenticated tenant user can open a ticket with
+    // central. Ticket creation + replies are throttled to stop abuse
+    // (5 new tickets / hour, 20 replies / hour per IP).
+    Route::get('support', [SupportTicketController::class, 'index'])->name('support.index');
+    Route::get('support/create', [SupportTicketController::class, 'create'])->name('support.create');
+    Route::post('support', [SupportTicketController::class, 'store'])
+        ->middleware('throttle:5,60')
+        ->name('support.store');
+    Route::get('support/{ticket}', [SupportTicketController::class, 'show'])
+        ->whereNumber('ticket')
+        ->name('support.show');
+    Route::post('support/{ticket}/reply', [SupportTicketController::class, 'reply'])
+        ->whereNumber('ticket')
+        ->middleware('throttle:20,60')
+        ->name('support.reply');
 });
 
 // Barangay super admin
-Route::middleware(['auth', 'password.change', 'super_admin'])->prefix('super')->name('super.')->group(function () {
+Route::middleware(['auth', 'password.change', 'super_admin', 'tenant.session.binding'])->prefix('super')->name('super.')->group(function () {
     Route::get('dashboard', [SuperAdminController::class, 'dashboard'])->name('dashboard');
     Route::get('settings', [SuperAdminController::class, 'settings'])->name('settings');
     Route::get('tenants', [SuperAdminController::class, 'tenants'])->name('tenants');
@@ -149,16 +204,44 @@ Route::middleware(['auth', 'password.change', 'super_admin'])->prefix('super')->
     Route::get('roles-permissions', [SuperRolePermissionsController::class, 'index'])->name('roles-permissions.index');
     Route::put('roles-permissions/{role}', [SuperRolePermissionsController::class, 'update'])->name('roles-permissions.update');
     Route::get('activity-logs', [SuperActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::get('support', [SuperSupportController::class, 'index'])->name('support.index');
+    Route::get('support/{ticket}', [SuperSupportController::class, 'show'])
+        ->whereNumber('ticket')
+        ->name('support.show');
+    Route::post('support/{ticket}/reply', [SuperSupportController::class, 'reply'])
+        ->whereNumber('ticket')
+        ->name('support.reply');
+    Route::post('support/{ticket}/status', [SuperSupportController::class, 'updateStatus'])
+        ->whereNumber('ticket')
+        ->name('support.status');
+
     Route::get('tenant-signup-requests', [SuperTenantSignupRequestController::class, 'index'])->name('tenant-signup-requests.index');
     Route::post('tenant-signup-requests/{signupRequest}/approve', [SuperTenantSignupRequestController::class, 'approve'])->name('tenant-signup-requests.approve');
     Route::post('tenant-signup-requests/{signupRequest}/reject', [SuperTenantSignupRequestController::class, 'reject'])->name('tenant-signup-requests.reject');
     Route::get('backup-restore', [SuperBackupController::class, 'index'])->name('backup-restore.index');
-    Route::post('backup-restore/create', [SuperBackupController::class, 'create'])->name('backup-restore.create');
+    Route::post('backup-restore/create', [SuperBackupController::class, 'create'])
+        ->middleware('throttle:10,1')
+        ->name('backup-restore.create');
     Route::get('backup-restore/download/{filename}', [SuperBackupController::class, 'download'])
         ->where('filename', '[A-Za-z0-9._-]+')
         ->name('backup-restore.download');
     Route::post('backup-restore/restore/{filename}', [SuperBackupController::class, 'restoreFromStored'])
         ->where('filename', '[A-Za-z0-9._-]+')
+        ->middleware('throttle:3,1')
         ->name('backup-restore.restore');
-    Route::post('backup-restore/restore-upload', [SuperBackupController::class, 'restoreFromUpload'])->name('backup-restore.restore-upload');
+    Route::post('backup-restore/restore-upload', [SuperBackupController::class, 'restoreFromUpload'])
+        ->middleware('throttle:3,1')
+        ->name('backup-restore.restore-upload');
+
+    // Release publisher: one-click "build release.zip and attach to GitHub Release".
+    Route::middleware('can:publish-releases')->group(function () {
+        Route::get('releases', [SuperReleaseController::class, 'index'])->name('releases.index');
+        Route::post('releases/create', [SuperReleaseController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('releases.create');
+        Route::post('releases/publish', [SuperReleaseController::class, 'publish'])
+            ->middleware('throttle:10,1')
+            ->name('releases.publish');
+        Route::get('releases/status', [SuperReleaseController::class, 'status'])->name('releases.status');
+    });
 });

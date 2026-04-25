@@ -213,6 +213,11 @@ export default function TenantSettings({ tenant, profile }) {
                                 className={inputClass}
                                 required
                             />
+                            {passwordErrors.password_confirmation && (
+                                <p className={errorClass}>
+                                    {passwordErrors.password_confirmation}
+                                </p>
+                            )}
                         </div>
                     </div>
 

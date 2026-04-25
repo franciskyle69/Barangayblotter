@@ -73,7 +73,10 @@ return [
     |
     */
 
-    'connection' => env('SESSION_CONNECTION'),
+    // Tenancy: sessions must always be stored in the central database.
+    // Do not use `config('tenancy.central_connection')` here — config files are
+    // loaded before the config repository is fully available.
+    'connection' => env('SESSION_CONNECTION', 'central'),
 
     /*
     |--------------------------------------------------------------------------

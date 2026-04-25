@@ -164,10 +164,48 @@ class IncidentController extends Controller
             return;
         }
 
+        // Pre-bake scalar snapshots of the Eloquent models before dispatch.
+        // The mailable deliberately doesn't use SerializesModels — a queue
+        // worker picking the job up in a fresh process has no tenant DB
+        // connection wired, so rehydrating an Eloquent model at that point
+        // would throw "Database connection [tenant] not configured". By
+        // capturing only the fields the email template needs, we stay
+        // queue-safe regardless of worker context.
+        $incidentSnapshot = (object) [
+            'id' => $incident->id,
+            'incident_type' => $incident->incident_type,
+            'description' => $incident->description,
+            'location' => $incident->location,
+            'incident_date' => $incident->incident_date,
+            'complainant_name' => $incident->complainant_name,
+            'respondent_name' => $incident->respondent_name,
+            'status' => $incident->status,
+        ];
+
+        $tenantSnapshot = (object) [
+            'id' => $tenant->id,
+            'name' => $tenant->name,
+            'slug' => $tenant->slug,
+        ];
+
+        $reporterSnapshot = (object) [
+            'id' => $reporter->id,
+            'name' => $reporter->name,
+            'email' => $reporter->email,
+        ];
+
         try {
-            foreach ($officialEmails as $email) {
-                Mail::to($email)->send(new IncidentReportedToOfficialsMail($incident, $tenant, $reporter, $reporterRole));
-            }
+            $recipient = $officialEmails->first();
+            $cc = $officialEmails->slice(1)->values()->all();
+
+            Mail::to($recipient)
+                ->bcc($cc)
+                ->queue(new IncidentReportedToOfficialsMail(
+                    $incidentSnapshot,
+                    $tenantSnapshot,
+                    $reporterSnapshot,
+                    (string) $reporterRole,
+                ));
         } catch (Throwable $e) {
             report($e);
         }
