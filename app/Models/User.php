@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable
 {
@@ -225,6 +226,27 @@ class User extends Authenticatable
 
     private function grantedTenantPermissionsForRole(Tenant $tenant, string $roleName): array
     {
+        $override = DB::table('tenant_role_permission_overrides')
+            ->where('role_name', $roleName)
+            ->value('permissions');
+
+        if ($override !== null) {
+            $decoded = json_decode((string) $override, true);
+            if (is_array($decoded)) {
+                $allowed = array_fill_keys(self::tenantPermissions(), true);
+                $filtered = [];
+                foreach ($decoded as $permission) {
+                    if (is_string($permission)) {
+                        $permission = trim($permission);
+                        if ($permission !== '' && isset($allowed[$permission])) {
+                            $filtered[] = $permission;
+                        }
+                    }
+                }
+                return array_values(array_unique($filtered));
+            }
+        }
+
         return self::tenantPermissionMatrix()[$roleName] ?? [];
     }
 

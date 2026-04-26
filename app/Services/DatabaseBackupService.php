@@ -17,11 +17,13 @@ class DatabaseBackupService
     {
     }
 
-    public function createBackup(): array
+    public function createBackup(?int $onlyTenantId = null): array
     {
-        $payload = $this->buildSnapshot();
+        $payload = $this->buildSnapshot($onlyTenantId);
 
-        $filename = 'full-backup-' . now()->format('Ymd_His') . '.json';
+        $filename = $onlyTenantId
+            ? ('tenant-backup-' . $onlyTenantId . '-' . now()->format('Ymd_His') . '.json')
+            : ('full-backup-' . now()->format('Ymd_His') . '.json');
         $relativePath = $this->relativePathFor($filename);
 
         Storage::disk('local')->makeDirectory(self::BACKUP_DIRECTORY);
@@ -110,7 +112,7 @@ class DatabaseBackupService
         $this->restoreSnapshot($payload);
     }
 
-    private function buildSnapshot(): array
+    private function buildSnapshot(?int $onlyTenantId = null): array
     {
         $centralConnection = config('tenancy.central_connection', 'central');
 
@@ -122,6 +124,7 @@ class DatabaseBackupService
                 'central_connection' => $centralConnection,
                 'central_driver' => $this->driverForConnection($centralConnection),
                 'tenant_backup_errors' => [],
+                'only_tenant_id' => $onlyTenantId,
             ],
             'central' => $this->dumpConnection($centralConnection),
             'standalone_tenant' => null,
@@ -147,10 +150,15 @@ class DatabaseBackupService
             }
         }
 
-        $tenants = Tenant::query()
+        $tenantsQuery = Tenant::query()
             ->select(['id', 'name', 'database_name'])
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
+
+        if ($onlyTenantId && $onlyTenantId > 0) {
+            $tenantsQuery->where('id', $onlyTenantId);
+        }
+
+        $tenants = $tenantsQuery->get();
 
         foreach ($tenants as $tenant) {
             $databaseName = $this->resolveTenantDatabaseName($tenant);

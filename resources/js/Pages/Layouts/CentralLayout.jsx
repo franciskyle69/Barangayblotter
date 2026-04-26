@@ -1,4 +1,5 @@
-import { Link, router, usePage } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
+import { postLogout } from "../../utils/postLogout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import ForcedPasswordChangeModal from "../../Components/ForcedPasswordChangeModal";
@@ -254,6 +255,22 @@ export default function CentralLayout({ children }) {
         }
     }, [flash?.success, flash?.error, flash?.warning]);
 
+    const confirmLogout = async () => {
+        const result = await Swal.fire({
+            title: "Logout?",
+            text: "You will be signed out of your account.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, logout",
+            cancelButtonText: "Cancel",
+            confirmButtonColor: "#ef4444",
+        });
+
+        if (result.isConfirmed) {
+            postLogout();
+        }
+    };
+
     return (
         <>
             <div
@@ -455,7 +472,7 @@ export default function CentralLayout({ children }) {
                         </span>
                         <button
                             type="button"
-                            onClick={() => router.post("/logout")}
+                            onClick={confirmLogout}
                             className="rounded-devias border px-3 py-2 text-sm font-medium transition"
                             style={{
                                 borderColor: "#475569",

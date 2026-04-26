@@ -6,8 +6,10 @@ use App\Models\BlotterRequest;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\BlotterCertificateService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -84,7 +86,8 @@ class BlotterRequestController extends Controller
         $tenant = app('current_tenant');
 
         $validated = $request->validate([
-            'incident_id' => 'required|exists:incidents,id',
+            // Incidents live in the tenant database, so validate against the tenant connection.
+            'incident_id' => 'required|exists:tenant.incidents,id',
             'purpose' => 'nullable|string|max:255',
         ]);
         // Global scope ensures only tenant's incidents are found
@@ -132,6 +135,20 @@ class BlotterRequestController extends Controller
             'remarks' => $validated['remarks'] ?? null,
         ]);
 
+        // Generate certificate PDF on approval (stored for later download/printing).
+        try {
+            $service = app(BlotterCertificateService::class);
+            $publicPath = $service->generateAndStore($blotterRequest);
+            $blotterRequest->forceFill([
+                'certificate_path' => $publicPath,
+                'printed_at' => now(),
+                'status' => BlotterRequest::STATUS_PRINTED,
+            ])->save();
+        } catch (\Throwable $e) {
+            report($e);
+            // Keep the request approved even if PDF generation fails.
+        }
+
         ActivityLogService::record(
             request: $request,
             action: 'tenant.blotter_request.approve',
@@ -145,6 +162,35 @@ class BlotterRequestController extends Controller
         );
 
         return back()->with('success', 'Request approved.');
+    }
+
+    public function certificate(Request $request, BlotterRequest $blotterRequest)
+    {
+        $tenant = app('current_tenant');
+        $user = $request->user();
+
+        $isStaff = $this->canReviewRequests($request);
+        $isOwner = (int) $blotterRequest->requested_by_user_id === (int) $user->id;
+
+        if (!$tenant || (!$isStaff && !$isOwner)) {
+            abort(403);
+        }
+
+        if (!$blotterRequest->certificate_path) {
+            abort(404, 'Certificate not generated yet.');
+        }
+
+        $relative = ltrim(str_replace('storage/', '', (string) $blotterRequest->certificate_path), '/');
+        if (!Storage::disk('public')->exists($relative)) {
+            abort(404, 'Certificate file missing.');
+        }
+
+        $downloadName = sprintf(
+            'Blotter-Certificate-%s.pdf',
+            $blotterRequest->verification_code ?: $blotterRequest->id
+        );
+
+        return Storage::disk('public')->download($relative, $downloadName);
     }
 
     public function reject(Request $request, BlotterRequest $blotterRequest): RedirectResponse

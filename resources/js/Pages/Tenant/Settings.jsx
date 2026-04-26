@@ -2,10 +2,12 @@ import { useForm } from "@inertiajs/react";
 import TenantLayout from "../Layouts/TenantLayout";
 import SystemUpdaterPanel from "../../Components/SystemUpdaterPanel";
 import { usePage } from "@inertiajs/react";
+import TenantUpdaterPanel from "../../Components/TenantUpdaterPanel";
 
 export default function TenantSettings({ tenant, profile }) {
-    const { auth } = usePage().props;
+    const { auth, tenant_permissions } = usePage().props;
     const isSuperAdmin = Boolean(auth?.user?.is_super_admin);
+    const canRunTenantUpdate = Boolean(tenant_permissions?.manage_account_settings);
     const {
         data: profileData,
         setData: setProfileData,
@@ -69,6 +71,12 @@ export default function TenantSettings({ tenant, profile }) {
                     <SystemUpdaterPanel
                         title="System updater"
                         description="Runs a full application update (affects central + all tenants)."
+                    />
+                )}
+                {!isSuperAdmin && canRunTenantUpdate && (
+                    <TenantUpdaterPanel
+                        title="Tenant updater"
+                        description="Runs tenant database migrations for this barangay only."
                     />
                 )}
                 <form

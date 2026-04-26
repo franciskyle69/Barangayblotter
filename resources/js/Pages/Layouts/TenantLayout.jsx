@@ -1,6 +1,8 @@
-import { Link, router, usePage } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
+import { postLogout } from "../../utils/postLogout";
 import { useEffect, useState } from "react";
 import ForcedPasswordChangeModal from "../../Components/ForcedPasswordChangeModal";
+import Swal from "sweetalert2";
 
 const Icon = ({ name, className = "size-4" }) => {
     const common = {
@@ -93,6 +95,14 @@ const Icon = ({ name, className = "size-4" }) => {
                     <path d="M15.6 15.6l3.5 3.5" />
                     <path d="M4.9 19.1l3.5-3.5" />
                     <path d="M15.6 8.4l3.5-3.5" />
+                </svg>
+            );
+        case "releases":
+            return (
+                <svg {...common}>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05" />
+                    <path d="M12 22.08V12" />
                 </svg>
             );
         case "settings":
@@ -230,28 +240,52 @@ const navItems = (tenant, permissions = {}) => {
         type: "link",
         label: "Support",
         mobileLabel: "Support",
-        href: "/support",
+        href: permissions.manage_users ? "/support" : "/support/create",
         icon: "support",
+    });
+    items.push({
+        type: "link",
+        label: "Releases",
+        mobileLabel: "Releases",
+        href: "/releases",
+        icon: "releases",
     });
 
     return items;
 };
 
-const ChevronDownIcon = () => (
-    <svg
-        className="size-4 text-slate-500"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-    >
-        <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8 9l4-4 4 4m0 6l-4 4-4-4"
-        />
-    </svg>
-);
+/** Matches `App\Models\User::tenantRoles()` labels for topbar display. */
+const TENANT_ROLE_LABELS = {
+    barangay_admin: "Barangay Admin",
+    purok_secretary: "Secretary",
+    purok_leader: "Captain",
+    community_watch: "Watch",
+    mediator: "Mediator",
+    resident: "Resident",
+    citizen: "Citizen",
+};
+
+/** Tailwind classes — high contrast chips for quick scanning. */
+const tenantRoleBadgeClass = (role) => {
+    switch (role) {
+        case "barangay_admin":
+            return "border-violet-400/80 bg-violet-600 text-white shadow-sm";
+        case "purok_leader":
+            return "border-emerald-500/70 bg-emerald-600 text-white shadow-sm";
+        case "purok_secretary":
+            return "border-indigo-400/80 bg-indigo-600 text-white shadow-sm";
+        case "community_watch":
+            return "border-amber-500/70 bg-amber-500 text-slate-900 shadow-sm";
+        case "mediator":
+            return "border-sky-500/70 bg-sky-600 text-white shadow-sm";
+        case "resident":
+            return "border-blue-400/80 bg-blue-500 text-white shadow-sm";
+        case "citizen":
+            return "border-cyan-400/80 bg-cyan-600 text-white shadow-sm";
+        default:
+            return "border-slate-300 bg-slate-600 text-white shadow-sm";
+    }
+};
 
 const hexToRgba = (hex, alpha) => {
     const normalized = String(hex || "").replace("#", "");
@@ -272,6 +306,7 @@ export default function TenantLayout({ children }) {
     const {
         auth,
         current_tenant,
+        current_tenant_role,
         tenant_permissions,
         app_name,
         app_version,
@@ -346,6 +381,30 @@ export default function TenantLayout({ children }) {
     };
 
     const sidebarWidthClass = sidebarCollapsed ? "lg:pl-20" : "lg:pl-64";
+
+    const roleLabel = current_tenant_role
+        ? TENANT_ROLE_LABELS[current_tenant_role] ??
+            String(current_tenant_role)
+                .split("_")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" ")
+        : null;
+
+    const confirmLogout = async () => {
+        const result = await Swal.fire({
+            title: "Logout?",
+            text: "You will be signed out of your account.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, logout",
+            cancelButtonText: "Cancel",
+            confirmButtonColor: "#ef4444",
+        });
+
+        if (result.isConfirmed) {
+            postLogout();
+        }
+    };
 
     return (
         <>
@@ -549,32 +608,32 @@ export default function TenantLayout({ children }) {
                             🏘️ {tenantLabel}
                         </div>
                     )}
-                    <div className="ml-auto flex items-center justify-end gap-3">
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                        <div className="flex max-w-[min(100%,18rem)] flex-col items-end gap-1 sm:max-w-none sm:flex-row sm:items-center sm:gap-2">
+                            <span className="truncate text-sm font-semibold text-slate-800">
+                                {user?.name}
+                            </span>
+                            {roleLabel && (
+                                <span
+                                    className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${tenantRoleBadgeClass(current_tenant_role)}`}
+                                    title={`Your role in ${tenantLabel}`}
+                                >
+                                    {roleLabel}
+                                </span>
+                            )}
+                        </div>
                         {current_tenant && (
                             <Link
                                 href="/tenant/select"
-                                className="flex items-center gap-2 rounded-devias border border-slate-200 px-3 py-2 text-sm font-medium transition"
-                                style={{
-                                    backgroundColor: "#f8fafc",
-                                    color: "#475569",
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.target.style.backgroundColor = "#f1f5f9";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.target.style.backgroundColor = "#f8fafc";
-                                }}
+                                className="shrink-0 text-xs font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-slate-800"
+                                title="Switch to another barangay workspace"
                             >
-                                <span>Switch</span>
-                                <ChevronDownIcon />
+                                Change barangay
                             </Link>
                         )}
-                        <span className="text-sm text-slate-600">
-                            {user?.name}
-                        </span>
                         <button
                             type="button"
-                            onClick={() => router.post("/logout")}
+                            onClick={confirmLogout}
                             className="rounded-devias border border-slate-200 px-3 py-2 text-sm font-medium transition"
                             style={{
                                 backgroundColor: "#ffffff",

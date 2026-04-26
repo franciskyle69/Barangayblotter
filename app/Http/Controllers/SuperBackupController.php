@@ -25,13 +25,15 @@ class SuperBackupController extends Controller
         return Inertia::render('Super/BackupRestore', [
             'backups' => $backupService->listBackups(),
             'backupDirectory' => $backupService->absoluteBackupDirectory(),
+            'tenants' => \App\Models\Tenant::query()->orderBy('name')->get(['id', 'name'])->toArray(),
         ]);
     }
 
     public function create(DatabaseBackupService $backupService): RedirectResponse
     {
         try {
-            $backup = $backupService->createBackup();
+            $onlyTenantId = request()->integer('tenant_id');
+            $backup = $backupService->createBackup($onlyTenantId > 0 ? $onlyTenantId : null);
 
             ActivityLogService::record(
                 request: request(),
@@ -39,6 +41,7 @@ class SuperBackupController extends Controller
                 description: "Created backup file {$backup['filename']}.",
                 metadata: [
                     'filename' => $backup['filename'],
+                    'only_tenant_id' => $onlyTenantId > 0 ? $onlyTenantId : null,
                 ],
                 targetType: 'backup_file',
                 targetId: $backup['filename'],

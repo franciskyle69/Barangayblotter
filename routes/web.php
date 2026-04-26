@@ -25,6 +25,8 @@ use App\Http\Controllers\SuperBackupController;
 use App\Http\Controllers\SuperReleaseController;
 use App\Http\Controllers\TenantSignupController;
 use App\Http\Controllers\SystemUpdateController;
+use App\Http\Controllers\TenantUpdateController;
+use App\Http\Controllers\TenantReleasesController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -110,14 +112,19 @@ Route::middleware(['auth', 'password.change', 'tenant', 'tenant.ensure', 'tenant
         Route::put('settings/password', [TenantSettingsController::class, 'updatePassword'])->name('settings.password.update');
     });
 
+    // Literal paths must be registered before `incidents/{incident}` or Laravel
+    // will match "create" as an incident id (404 on /incidents/create).
     Route::middleware('tenant.permission:view_incidents')->group(function () {
         Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
-        Route::get('incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
     });
 
     Route::middleware('tenant.permission:create_incidents')->group(function () {
         Route::get('incidents/create', [IncidentController::class, 'create'])->name('incidents.create');
         Route::post('incidents', [IncidentController::class, 'store'])->name('incidents.store');
+    });
+
+    Route::middleware('tenant.permission:view_incidents')->group(function () {
+        Route::get('incidents/{incident}', [IncidentController::class, 'show'])->name('incidents.show');
     });
 
     Route::middleware('tenant.permission:request_blotter_copy')->group(function () {
@@ -126,6 +133,11 @@ Route::middleware(['auth', 'password.change', 'tenant', 'tenant.ensure', 'tenant
     });
 
     Route::get('blotter-requests', [BlotterRequestController::class, 'index'])->name('blotter-requests.index');
+    Route::get('blotter-requests/{blotterRequest}/certificate', [BlotterRequestController::class, 'certificate'])
+        ->name('blotter-requests.certificate');
+
+    // Read-only list of GitHub releases (for tenants).
+    Route::get('releases', [TenantReleasesController::class, 'index'])->name('tenant.releases.index');
 
     Route::middleware('tenant.permission:manage_branding')->group(function () {
         Route::get('branding', [TenantBrandingController::class, 'edit'])->name('branding.edit');
@@ -171,18 +183,30 @@ Route::middleware(['auth', 'password.change', 'tenant', 'tenant.ensure', 'tenant
     // Support: any authenticated tenant user can open a ticket with
     // central. Ticket creation + replies are throttled to stop abuse
     // (5 new tickets / hour, 20 replies / hour per IP).
-    Route::get('support', [SupportTicketController::class, 'index'])->name('support.index');
     Route::get('support/create', [SupportTicketController::class, 'create'])->name('support.create');
     Route::post('support', [SupportTicketController::class, 'store'])
         ->middleware('throttle:5,60')
         ->name('support.store');
-    Route::get('support/{ticket}', [SupportTicketController::class, 'show'])
-        ->whereNumber('ticket')
-        ->name('support.show');
-    Route::post('support/{ticket}/reply', [SupportTicketController::class, 'reply'])
-        ->whereNumber('ticket')
-        ->middleware('throttle:20,60')
-        ->name('support.reply');
+
+    // Viewing ticket history is restricted to tenant admins; non-admin users can
+    // only submit new tickets to central.
+    Route::middleware('tenant.role:barangay_admin')->group(function () {
+        Route::get('support', [SupportTicketController::class, 'index'])->name('support.index');
+        Route::get('support/{ticket}', [SupportTicketController::class, 'show'])
+            ->whereNumber('ticket')
+            ->name('support.show');
+        Route::post('support/{ticket}/reply', [SupportTicketController::class, 'reply'])
+            ->whereNumber('ticket')
+            ->middleware('throttle:20,60')
+            ->name('support.reply');
+    });
+
+    // Tenant updater: run tenant DB migrations for this tenant only.
+    // Gate it behind the same permission that grants access to Settings.
+    Route::middleware('tenant.permission:manage_account_settings')->group(function () {
+        Route::post('tenant/update', [TenantUpdateController::class, 'store'])->name('tenant.update.store');
+        Route::get('tenant/update/{tenantUpdate}', [TenantUpdateController::class, 'show'])->name('tenant.update.show');
+    });
 });
 
 // Barangay super admin

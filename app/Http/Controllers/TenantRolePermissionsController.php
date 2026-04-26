@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,7 +27,19 @@ class TenantRolePermissionsController extends Controller
 
         $roles = collect($tenantRoles)
             ->map(function (string $label, string $roleName) {
-                $tenantScopedPermissions = collect(User::tenantPermissionMatrix()[$roleName] ?? [])
+                $override = DB::table('tenant_role_permission_overrides')
+                    ->where('role_name', $roleName)
+                    ->value('permissions');
+
+                $storedPermissions = null;
+                if ($override !== null) {
+                    $decoded = json_decode((string) $override, true);
+                    if (is_array($decoded)) {
+                        $storedPermissions = $decoded;
+                    }
+                }
+
+                $tenantScopedPermissions = collect($storedPermissions ?? (User::tenantPermissionMatrix()[$roleName] ?? []))
                     ->sort()
                     ->values();
 
@@ -58,7 +70,27 @@ class TenantRolePermissionsController extends Controller
             abort(404);
         }
 
-        return back()->with('warning', 'Tenant-specific permission overrides are not stored centrally in the tenant-local architecture.');
+        $validated = $request->validate([
+            'permissions' => ['array'],
+            'permissions.*' => ['string', 'distinct'],
+        ]);
+
+        $allowedPermissions = User::tenantPermissions();
+        $selectedPermissions = array_values(array_intersect(
+            $validated['permissions'] ?? [],
+            $allowedPermissions
+        ));
+
+        DB::table('tenant_role_permission_overrides')->updateOrInsert(
+            ['role_name' => $role],
+            [
+                'permissions' => json_encode(array_values($selectedPermissions)),
+                'updated_at' => now(),
+                'created_at' => now(),
+            ],
+        );
+
+        return back()->with('success', sprintf('%s permissions updated for this tenant.', User::tenantRoles()[$role] ?? $role));
     }
 
     private function permissionLabels($permissions): array

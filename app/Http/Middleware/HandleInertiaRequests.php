@@ -28,6 +28,7 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'csrf_token' => fn () => csrf_token(),
             'auth' => [
                 'user' => $request->user() ? [
                     'id' => $request->user()->id,
@@ -96,6 +97,9 @@ class HandleInertiaRequests extends Middleware
                 : (object) [],
             'app_name' => config('app.name'),
             'app_version' => fn() => $this->resolveAppVersion(),
+            'central_login_background_url' => fn() => (string) (env('CENTRAL_LOGIN_BACKGROUND_URL', '')),
+            'central_login_background_opacity' => fn() => (float) env('CENTRAL_LOGIN_BACKGROUND_OPACITY', 0.45),
+            'central_login_background_blur' => fn() => (int) env('CENTRAL_LOGIN_BACKGROUND_BLUR', 0),
             'logo_url' => function () {
                 if (app()->bound('current_tenant')) {
                     $tenant = app('current_tenant');

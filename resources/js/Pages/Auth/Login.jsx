@@ -2,34 +2,44 @@ import { useState } from "react";
 import { useForm, usePage } from "@inertiajs/react";
 
 export default function Login() {
-    const { errors, logo_url, current_tenant } = usePage().props;
-    const csrfToken =
-        typeof document !== "undefined"
-            ? document.head
-                  ?.querySelector('meta[name="csrf-token"]')
-                  ?.getAttribute("content")
-            : null;
+    const {
+        errors,
+        logo_url,
+        current_tenant,
+        central_login_background_url,
+        central_login_background_opacity,
+        central_login_background_blur,
+    } = usePage().props;
     const [logoError, setLogoError] = useState(false);
-    const { data, setData, post, processing, transform } = useForm({
+    const { data, setData, post, processing } = useForm({
         email: "",
         password: "",
         remember: false,
     });
 
+    // Fallback logo used when tenant branding hasn't set one yet.
     const logoSrc = logo_url || "/images/logo.png";
     const tenantLabel = current_tenant?.slug || current_tenant?.name;
     const title = tenantLabel
-        ? `Office of the barangay ${tenantLabel} blottter`
-        : "International Websystem of the universe and in the milky way galaxy";
-    const loginBackgroundUrl = current_tenant?.login_background_url || null;
+        ? `Office of the barangay ${tenantLabel} blotter`
+        : "Barangay Blotter Tenancy";
+    const isCentralLogin = !current_tenant;
+    const loginBackgroundUrl =
+        current_tenant?.login_background_url ||
+        (isCentralLogin ? central_login_background_url : null) ||
+        null;
     const loginOverlayOpacity =
         current_tenant?.login_background_opacity != null
             ? Number(current_tenant.login_background_opacity)
-            : 0.45;
+            : isCentralLogin && central_login_background_opacity != null
+              ? Number(central_login_background_opacity)
+              : 0.45;
     const loginBackgroundBlur =
         current_tenant?.login_background_blur != null
             ? Number(current_tenant.login_background_blur)
-            : 0;
+            : isCentralLogin && central_login_background_blur != null
+              ? Number(central_login_background_blur)
+              : 0;
     const themePrimary = current_tenant?.theme_primary_color || "#635bff";
     const themeSidebar = current_tenant?.theme_sidebar_color || "#121621";
 
@@ -85,7 +95,25 @@ export default function Login() {
                             </span>
                         )}
                     </div>
-                    <h1 className="text-2xl font-bold leading-tight text-slate-900">
+                    <h1
+                        className="text-2xl font-bold leading-tight"
+                        style={{
+                            color: loginBackgroundUrl ? "#ffffff" : "#0f172a",
+                            WebkitTextStroke: loginBackgroundUrl
+                                ? "1px rgba(0,0,0,0.65)"
+                                : "0px transparent",
+                            textShadow: loginBackgroundUrl
+                                ? [
+                                      "0 2px 24px rgba(0,0,0,0.85)",
+                                      "0 6px 30px rgba(0,0,0,0.65)",
+                                      "1px 1px 0 rgba(0,0,0,0.75)",
+                                      "-1px 1px 0 rgba(0,0,0,0.75)",
+                                      "1px -1px 0 rgba(0,0,0,0.75)",
+                                      "-1px -1px 0 rgba(0,0,0,0.75)",
+                                  ].join(", ")
+                                : "0 1px 0 rgba(255,255,255,0.35)",
+                        }}
+                    >
                         {title}
                     </h1>
                 </div>
@@ -99,29 +127,31 @@ export default function Login() {
                     </div>
                 )}
                 <div
-                    className="rounded-lg border border-slate-200/80 bg-white p-6 shadow-sm"
-                    style={{
-                        backgroundColor: `rgba(255,255,255,0.96)`,
-                        boxShadow: `0 20px 45px -15px ${themeSidebar}33`,
-                    }}
+                    className={
+                        isCentralLogin
+                            ? "rounded-2xl border p-6 shadow-sm backdrop-blur-xl"
+                            : "rounded-lg border border-slate-200/80 bg-white p-6 shadow-sm"
+                    }
+                    style={
+                        isCentralLogin
+                            ? {
+                                  background:
+                                      "linear-gradient(135deg, rgba(255,255,255,0.50), rgba(255,255,255,0.22))",
+                                  borderColor: "rgba(255,255,255,0.35)",
+                                  boxShadow: `0 20px 55px -20px ${themeSidebar}55`,
+                              }
+                            : {
+                                  backgroundColor: "rgba(255,255,255,0.96)",
+                                  boxShadow: `0 20px 45px -15px ${themeSidebar}33`,
+                              }
+                    }
                 >
                     <form
                         onSubmit={(e) => {
                             e.preventDefault();
-                            // If CSRF cookie/header sync breaks on some tenant domains
-                            // (seen as 419 Page Expired), fall back to sending the token
-                            // explicitly with the request.
-                            transform((payload) => ({
-                                ...payload,
-                                ...(csrfToken ? { _token: csrfToken } : {}),
-                            }));
-
-                            post("/login", {
-                                headers: csrfToken
-                                    ? { "X-CSRF-TOKEN": csrfToken }
-                                    : undefined,
-                                onFinish: () => transform((payload) => payload),
-                            });
+                            // CSRF headers are attached globally in resources/js/app.jsx
+                            // (visitOptions) so login works on tenant domains without 419.
+                            post("/login");
                         }}
                         className="space-y-4"
                     >

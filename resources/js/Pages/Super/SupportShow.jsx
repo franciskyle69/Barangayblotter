@@ -72,6 +72,7 @@ export default function SuperSupportShow({ ticket, statuses }) {
                     </span>
                     <span className="rounded-full bg-cyan-100 px-2 py-0.5 font-medium text-cyan-800">
                         {ticket.tenant?.name || "—"}
+                        {ticket.tenant?.slug ? ` (${ticket.tenant.slug})` : ""}
                     </span>
                 </div>
                 <div className="mt-2 text-xs text-slate-500">

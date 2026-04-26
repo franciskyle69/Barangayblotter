@@ -47,14 +47,6 @@ class SystemUpdateService
                 return;
             }
 
-            // Keep the UI's version badge in sync with the deployed release tag.
-            // The frontend reads this via HandleInertiaRequests::resolveAppVersion().
-            try {
-                File::put(base_path('version.txt'), trim((string) $tag) . PHP_EOL);
-            } catch (Throwable $e) {
-                $update->appendLog('WARNING: could not write version.txt: ' . trim($e->getMessage()));
-            }
-
             $update->appendLog('Enabling maintenance mode...');
             $down = ['down'];
             if ($update->maintenance_bypass_secret) {
@@ -74,6 +66,15 @@ class SystemUpdateService
 
             $update->appendLog('Overwriting application files (excluding .env, storage, vendor)...');
             $this->overwriteApplication($update, $extractPath);
+
+            // Keep the UI's version badge in sync with the deployed release tag.
+            // This must happen AFTER overwriting files, because the ZIP may
+            // contain an outdated version.txt.
+            try {
+                File::put(base_path('version.txt'), trim((string) $tag) . PHP_EOL);
+            } catch (Throwable $e) {
+                $update->appendLog('WARNING: could not write version.txt: ' . trim($e->getMessage()));
+            }
 
             $update->appendLog('Running composer install...');
             $this->runProcess($update, ['composer', 'install', '--no-dev', '--optimize-autoloader', '--no-interaction'], $this->basePath, 3600);

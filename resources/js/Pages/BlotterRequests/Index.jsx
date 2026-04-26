@@ -138,6 +138,18 @@ export default function BlotterRequestsIndex({ requests, role, filters = {} }) {
                                         >
                                             {req.status}
                                         </span>
+                                        {req.certificate_path && (
+                                            <div className="mt-1">
+                                                <a
+                                                    href={`/blotter-requests/${req.id}/certificate`}
+                                                    className="text-xs text-emerald-700 hover:underline"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    Download certificate
+                                                </a>
+                                            </div>
+                                        )}
                                     </td>
                                     {isStaff && (
                                         <td className="px-4 py-2 text-right">

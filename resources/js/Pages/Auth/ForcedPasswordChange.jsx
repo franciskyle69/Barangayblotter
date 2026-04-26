@@ -1,4 +1,5 @@
 import { Head, useForm, router } from "@inertiajs/react";
+import { postLogout } from "../../utils/postLogout";
 
 /**
  * Full-page forced-password-change form. Shown when a user has
@@ -156,7 +157,7 @@ export default function ForcedPasswordChange({ user }) {
                             href="/logout"
                             onClick={(e) => {
                                 e.preventDefault();
-                                router.post("/logout");
+                                postLogout();
                             }}
                             className="text-sm font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
                         >

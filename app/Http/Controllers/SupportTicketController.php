@@ -115,9 +115,12 @@ class SupportTicketController extends Controller
             tenantId: $tenant->id,
         );
 
+        // Non-admin tenant users are intentionally not allowed to view ticket
+        // history. Always send the user back to the create page with a success
+        // flash.
         return redirect()
-            ->route('support.show', $ticket->id)
-            ->with('success', 'Your support ticket has been submitted. Our team will get back to you shortly.');
+            ->route('support.create')
+            ->with('success', "Your support ticket has been submitted (Ticket #{$ticket->id}). Our team will get back to you shortly.");
     }
 
     public function show(Request $request, int $ticket): Response|RedirectResponse

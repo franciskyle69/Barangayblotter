@@ -1,5 +1,7 @@
-import { Link, router, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
+import { postLogout } from '../../utils/postLogout';
 import ForcedPasswordChangeModal from '../../Components/ForcedPasswordChangeModal';
+import Swal from 'sweetalert2';
 
 const navItems = (tenant, isSuperAdmin) => {
   if (isSuperAdmin) {
@@ -40,6 +42,22 @@ export default function AppLayout({ children }) {
   const isActive = (href) => {
     if (href === '/dashboard' || href === '/super/dashboard') return path === href;
     return path.startsWith(href);
+  };
+
+  const confirmLogout = async () => {
+    const result = await Swal.fire({
+      title: 'Logout?',
+      text: 'You will be signed out of your account.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, logout',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#ef4444',
+    });
+
+    if (result.isConfirmed) {
+      postLogout();
+    }
   };
 
   return (
@@ -126,7 +144,7 @@ export default function AppLayout({ children }) {
             <span className="text-sm text-slate-600">{user?.name}</span>
             <button
               type="button"
-              onClick={() => router.post('/logout')}
+              onClick={confirmLogout}
               className="rounded-devias border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Logout

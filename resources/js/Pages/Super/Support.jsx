@@ -178,7 +178,14 @@ export default function SuperSupport({
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-slate-600">
-                                        {t.tenant?.name || "—"}
+                                        <div className="font-medium text-slate-700">
+                                            {t.tenant?.name || "—"}
+                                        </div>
+                                        {t.tenant?.slug && (
+                                            <div className="mt-0.5 font-mono text-xs text-slate-400">
+                                                {t.tenant.slug}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-slate-600">
                                         {labelize(t.category)}

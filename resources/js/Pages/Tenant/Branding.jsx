@@ -57,11 +57,25 @@ export default function TenantBranding({
     tenant,
     logoOptions: serverLogoOptions,
 }) {
+    const csrfToken =
+        typeof document !== "undefined"
+            ? document.head
+                  ?.querySelector('meta[name="csrf-token"]')
+                  ?.getAttribute("content")
+            : null;
     const options =
         Array.isArray(serverLogoOptions) && serverLogoOptions.length > 0
             ? serverLogoOptions
             : logoOptions;
-    const { data, setData, post, processing, errors, clearErrors } = useForm({
+    const {
+        data,
+        setData,
+        post,
+        processing,
+        errors,
+        clearErrors,
+        transform,
+    } = useForm({
         sidebar_label: tenant?.sidebar_label ?? tenant?.name ?? "",
         logo_choice: tenant?.logo_choice ?? "default",
         logo_file: null,
@@ -112,6 +126,17 @@ export default function TenantBranding({
         post("/branding", {
             forceFormData: true,
             preserveScroll: true,
+            headers: csrfToken ? { "X-CSRF-TOKEN": csrfToken } : undefined,
+            onBefore: () => {
+                // If CSRF cookie/header sync breaks on some tenant domains
+                // (seen as 419 Page Expired), fall back to sending the token
+                // explicitly with the request.
+                transform((payload) => ({
+                    ...payload,
+                    ...(csrfToken ? { _token: csrfToken } : {}),
+                }));
+            },
+            onFinish: () => transform((payload) => payload),
         });
     };
 

@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import CentralLayout from "../Layouts/CentralLayout";
 
-export default function BackupRestore({ backups, backupDirectory }) {
+export default function BackupRestore({ backups, backupDirectory, tenants }) {
     const history = useMemo(
         () => (Array.isArray(backups) ? backups : []),
         [backups],
@@ -12,6 +12,7 @@ export default function BackupRestore({ backups, backupDirectory }) {
     const [confirmation, setConfirmation] = useState("");
     const [creating, setCreating] = useState(false);
     const [restoring, setRestoring] = useState(false);
+    const [tenantId, setTenantId] = useState("");
 
     const formatNumber = (value) => {
         if (typeof value !== "number") {
@@ -22,9 +23,10 @@ export default function BackupRestore({ backups, backupDirectory }) {
     };
 
     const handleCreateBackup = async () => {
+        const scopeLabel = tenantId ? "central + selected tenant" : "central + all tenants";
         const result = await Swal.fire({
             title: "Create database backup?",
-            text: "This will snapshot central data and all tenant databases.",
+            text: `This will snapshot ${scopeLabel}.`,
             icon: "question",
             showCancelButton: true,
             confirmButtonText: "Create Backup",
@@ -36,7 +38,7 @@ export default function BackupRestore({ backups, backupDirectory }) {
 
         router.post(
             "/super/backup-restore/create",
-            {},
+            tenantId ? { tenant_id: tenantId } : {},
             {
                 preserveScroll: true,
                 onStart: () => setCreating(true),
@@ -172,6 +174,33 @@ export default function BackupRestore({ backups, backupDirectory }) {
                             <p className="mt-2 text-sm text-slate-300">
                                 Creates a full JSON snapshot and stores it in:
                             </p>
+                            <div className="mt-3">
+                                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400">
+                                    Backup scope
+                                </label>
+                                <select
+                                    value={tenantId}
+                                    onChange={(e) => setTenantId(e.target.value)}
+                                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                                >
+                                    <option value="">
+                                        Full backup (all tenants)
+                                    </option>
+                                    {(Array.isArray(tenants) ? tenants : []).map(
+                                        (t) => (
+                                            <option
+                                                key={t.id}
+                                                value={String(t.id)}
+                                            >
+                                                Tenant backup: {t.name}
+                                            </option>
+                                        ),
+                                    )}
+                                </select>
+                                <p className="mt-1 text-xs text-slate-400">
+                                    Choose a tenant to generate a smaller backup that includes only that tenant database.
+                                </p>
+                            </div>
                             <p className="mt-1 inline-block rounded bg-slate-800 px-2 py-1 text-xs text-slate-300">
                                 {backupDirectory}
                             </p>

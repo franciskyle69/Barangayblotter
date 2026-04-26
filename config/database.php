@@ -31,6 +31,51 @@ return [
 
     'connections' => [
 
+        /**
+         * Tenant connection used by tenant-scoped Eloquent models and tenant
+         * migrations (`--database=tenant`).
+         *
+         * The actual tenant database name/path is swapped at runtime by
+         * `TenantDatabaseManager` (it updates `database.connections.tenant` and
+         * purges the connection). This config just needs to exist so Artisan can
+         * resolve the connection name.
+         */
+        'tenant' => [
+            'driver' => env('DB_CONNECTION', 'sqlite'),
+            'url' => env('DB_URL'),
+            // Default placeholder; real DB is configured per-tenant at runtime.
+            // Must still be syntactically valid for the driver so Artisan can connect.
+            'database' => (function () {
+                $driver = env('DB_CONNECTION', 'sqlite');
+                if ($driver === 'sqlite') {
+                    return env('TENANT_DB_DATABASE', database_path('tenants/tenant.sqlite'));
+                }
+                return env('TENANT_DB_DATABASE', env('DB_DATABASE', 'laravel'));
+            })(),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') && defined('Pdo\\Mysql::ATTR_SSL_CA') ? array_filter([
+                constant('Pdo\\Mysql::ATTR_SSL_CA') => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+            // sqlite-only options (ignored by other drivers)
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'busy_timeout' => null,
+            'journal_mode' => null,
+            'synchronous' => null,
+            // pgsql-only options (ignored by other drivers)
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),

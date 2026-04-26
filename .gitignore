@@ -25,3 +25,6 @@ yarn-error.log
 # Backup / dump artifacts (never commit)
 release-stage/database_backup.sql
 release-build/database_backup.sql
+
+# Release build artifact (generated)
+release.zip
