@@ -1,0 +1,71 @@
+name: build-release-asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "GitHub release tag to build (e.g. v1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer:v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Create release.zip (PowerShell)
+        shell: pwsh
+        run: |
+          if (Test-Path release.zip) { Remove-Item release.zip -Force }
+
+          # Match local "Compress-Archive -Path *" style, but exclude
+          # huge/unsafe directories and secrets.
+          $exclude = @(
+            ".git",
+            "node_modules",
+            "vendor",
+            "storage",
+            ".env",
+            ".env.example",
+            "release.zip"
+          )
+
+          $items = Get-ChildItem -Force | Where-Object { $exclude -notcontains $_.Name }
+          Compress-Archive -Path $items.FullName -DestinationPath release.zip -Force
+
+      - name: Upload release.zip to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: release.zip
+
